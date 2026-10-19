@@ -1,4 +1,1 @@
-**/target
-**/Cargo.lock
-*.structure
-**/pkg
+target/

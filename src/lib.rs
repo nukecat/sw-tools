@@ -1,26 +1,50 @@
-use std::collections::{HashMap};
-use std::fmt::Write;
-use midly::{Smf, TrackEventKind, MidiMessage, Timing, MetaMessage};
-use sw_structure_io::structs::{Root, Block, Building, Metadata, TypeSettings};
-use thiserror::Error;
+use midly::{MetaMessage, MidiMessage, Smf, Timing, TrackEventKind};
+use std::collections::HashMap;
+use std::error::Error;
+use std::fmt::{self, Write};
+use sw_formats::primitives::Vec3;
+use sw_formats::structure::{Block, BlockSettings, CustomData, MathData, Root, Structure};
 
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("formatting error")]
-    Format(#[from] std::fmt::Error),
-    #[error("int conversion error")]
-    FromInt(#[from] std::num::TryFromIntError),
-    #[error("unsupported timing")]
-    UnsupportedTimingSMPTE
+#[derive(Debug)]
+pub enum ToMidiError {
+    Format(fmt::Error),
+    Unsupported(String),
 }
 
-type Result<T> = std::result::Result<T, Error>;
+impl fmt::Display for ToMidiError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ToMidiError::Unsupported(msg) => write!(f, "unsupported: {msg}"),
+            ToMidiError::Format(err) => write!(f, "format error: {err}"),
+        }
+    }
+}
+
+impl Error for ToMidiError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            ToMidiError::Format(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<fmt::Error> for ToMidiError {
+    fn from(value: fmt::Error) -> Self {
+        Self::Format(value)
+    }
+}
+
+type Result<T> = std::result::Result<T, ToMidiError>;
 
 fn pitch_to_freq(midi: u8) -> f32 {
     440.0 * 2.0_f32.powf((midi as f32 - 69.0) / 12.0)
 }
 
-pub fn data_to_functions(mut data_changes: Vec<(u32, u32)>, max_events_per_func: usize) -> Vec<String> {
+pub fn data_to_functions(
+    mut data_changes: Vec<(u32, u32)>,
+    max_events_per_func: usize,
+) -> Vec<String> {
     let mut functions: Vec<String> = Vec::new();
     data_changes.sort_by_key(|e| e.0);
 
@@ -34,12 +58,16 @@ pub fn data_to_functions(mut data_changes: Vec<(u32, u32)>, max_events_per_func:
             let mut function = String::new();
 
             for (j, (&diff, time_keys)) in diffs.iter().enumerate() {
-                if j > 0 { function.push('+'); }
+                if j > 0 {
+                    function.push('+');
+                }
 
                 let _ = write!(function, "{}*(", diff);
 
                 for (k, t) in time_keys.iter().enumerate() {
-                    if k > 0 { function.push('+'); }
+                    if k > 0 {
+                        function.push('+');
+                    }
                     let _ = write!(function, "step({},x)", t);
                 }
 
@@ -58,9 +86,9 @@ pub fn data_to_functions(mut data_changes: Vec<(u32, u32)>, max_events_per_func:
         let diff = data as i64 - prev_data as i64;
 
         diffs
-        .entry(diff)
-        .and_modify(|e| e.push(time))
-        .or_insert(vec![time]);
+            .entry(diff)
+            .and_modify(|e| e.push(time))
+            .or_insert(vec![time]);
 
         prev_data = data;
     }
@@ -68,10 +96,16 @@ pub fn data_to_functions(mut data_changes: Vec<(u32, u32)>, max_events_per_func:
     functions
 }
 
-pub fn midi_to_data_changes(smf: Smf, min_pitch: u8, max_pitch: u8, min_velocity: u8, notes_per_value: u8) -> Result<(u32, Vec<Vec<(u32, u32)>>, Vec<u8>, Vec<(u32, u32)>, u32)> {
+pub fn midi_to_data_changes(
+    smf: Smf,
+    min_pitch: u8,
+    max_pitch: u8,
+    min_velocity: u8,
+    notes_per_value: u8,
+) -> Result<(u32, Vec<Vec<(u32, u32)>>, Vec<u8>, Vec<(u32, u32)>, u32)> {
     let ppq = match smf.header.timing {
         Timing::Metrical(t) => t.as_int() as u32,
-        Timing::Timecode(_, _) => return Err(Error::UnsupportedTimingSMPTE)
+        Timing::Timecode(_, _) => return Err(ToMidiError::Unsupported("timecode".into())),
     };
 
     // Collecting events from all tracks in midi.
@@ -89,17 +123,21 @@ pub fn midi_to_data_changes(smf: Smf, min_pitch: u8, max_pitch: u8, min_velocity
             match event.kind {
                 TrackEventKind::Midi { message, .. } => {
                     let (key, state) = match message {
-                        MidiMessage::NoteOn  { key, vel } => (key.as_int(), vel.as_int() > min_velocity),
-                        MidiMessage::NoteOff { key, ..  } => (key.as_int(), false),
-                        _ => continue
+                        MidiMessage::NoteOn { key, vel } => {
+                            (key.as_int(), vel.as_int() > min_velocity)
+                        }
+                        MidiMessage::NoteOff { key, .. } => (key.as_int(), false),
+                        _ => continue,
                     };
-                    if key < min_pitch || key > max_pitch { continue; }
+                    if key < min_pitch || key > max_pitch {
+                        continue;
+                    }
                     note_events.push((abs_time, key, state));
                     used_keys[key as usize] = true;
-                },
+                }
                 TrackEventKind::Meta(MetaMessage::Tempo(t)) => {
                     tempo_events.push((abs_time, t.as_int()));
-                },
+                }
                 _ => {}
             }
         }
@@ -119,14 +157,17 @@ pub fn midi_to_data_changes(smf: Smf, min_pitch: u8, max_pitch: u8, min_velocity
     let mut i = 0;
 
     for (key, &is_used) in used_keys.iter().enumerate() {
-        if !is_used { continue; }
+        if !is_used {
+            continue;
+        }
         key_mapping.insert(key as u8, i);
         index_to_key.push(key as u8);
         i += 1;
     }
 
     let used_keys_count = key_mapping.len();
-    let channels_count = ((used_keys_count.checked_sub(1).unwrap_or(0)) / notes_per_value as usize) + 1;
+    let channels_count =
+        ((used_keys_count.checked_sub(1).unwrap_or(0)) / notes_per_value as usize) + 1;
 
     // Encoding note changes into bits of values.
     let mut note_counters = vec![0u8; used_keys_count];
@@ -148,13 +189,9 @@ pub fn midi_to_data_changes(smf: Smf, min_pitch: u8, max_pitch: u8, min_velocity
             let mapped = key_mapping[&key];
             // !todo: needs check for overflow
             if state == true {
-                note_counters[mapped] = note_counters[mapped]
-                .checked_add(1)
-                .unwrap_or(u8::MAX);
+                note_counters[mapped] = note_counters[mapped].checked_add(1).unwrap_or(u8::MAX);
             } else {
-                note_counters[mapped] = note_counters[mapped]
-                .checked_sub(1)
-                .unwrap_or(0);
+                note_counters[mapped] = note_counters[mapped].checked_sub(1).unwrap_or(0);
             }
         }
 
@@ -163,7 +200,9 @@ pub fn midi_to_data_changes(smf: Smf, min_pitch: u8, max_pitch: u8, min_velocity
             let mut data = 0;
             for bit in 0..notes_per_value {
                 let index = c * notes_per_value as usize + bit as usize;
-                if !(index < used_keys_count) || note_counters[index] < 1 { continue; }
+                if !(index < used_keys_count) || note_counters[index] < 1 {
+                    continue;
+                }
                 data = data | 1 << bit;
             }
             if data != prev_data {
@@ -185,114 +224,113 @@ pub fn build_music_player(
     max_events_per_func: usize,
     total_len: u32,
     ppq: u32,
-    repeat: bool
-) -> Result<Building> {
+    repeat: bool,
+) -> Result<Structure> {
     // Special positions for blocks.
-    const SWITCH_POSITION   : [f32; 3] = [ 0.0 , 0.015625 ,  0.25 ];
-    const TONE_GEN_POSITION : [f32; 3] = [ 0.0 , 0.0      , -0.25 ];
+    let switch_position = Vec3::new(0.0, 0.015625, 0.25);
+    let tone_gen_position = Vec3::new(0.0, 0.0, -0.25);
 
     // Decoder function
     let mut decoder_func = String::new();
     for (p, ind) in (1..=notes_per_value as usize).rev().enumerate() {
-        write!(decoder_func, "ind({})=step(0.5,(A%1/2^{})*2^{})+step(1,A);", ind, p, p)?;
+        write!(
+            decoder_func,
+            "ind({})=step(0.5,(A%1/2^{})*2^{})+step(1,A);",
+            ind, p, p
+        )?;
     }
     decoder_func.push('0');
 
     // Initializing array with blocks that are always present.
     let mut blocks: Vec<Block> = vec![
-        Block { // 0
-            id: 129, // Math block
-            metadata: Some(Metadata {
-                type_settings: TypeSettings::MathBlock {
-                    function: {
+        Block {
+            // 0
+            settings: Some(BlockSettings {
+                custom: Some(CustomData::Math(MathData {
+                    expression: {
                         let mut f = String::new();
                         write!(
                             f,
                             "s=0.0001;tempo_us=max(C*{},1);dt_sec=1/50;dt_ticks=dt_sec*{}*1000000/tempo_us;B=1-B;A*(Lval+dt_ticks/{}){}",
-                               2u32.pow(24),
-                               ppq,
-                               total_len,
-                               if repeat { "%1" } else { "" }
+                            2u32.pow(24),
+                            ppq,
+                            total_len,
+                            if repeat { "%1" } else { "" }
                         )?;
                         f
                     },
-                    incoming_connections_order: Vec::new(),
-                           slots: Vec::new()
-                },
+                    ..Default::default()
+                })),
                 ..Default::default()
             }),
-            connections: vec![2, 4],
-            ..Default::default()
+            wires: vec![2, 4],
+            ..Block::new(129, 0) // Math block
         },
-        Block { // 1: A
-            id: 9, // Switch
-            position: SWITCH_POSITION,
-            connections: vec![0],
-            ..Default::default()
+        Block {
+            // 1: A
+            position: switch_position,
+            wires: vec![0],
+            ..Block::new(9, 0) // Switch
         },
-        Block { // 2 - Forces math block to update: B
-            id: 78, // OR
-            connections: vec![0],
-            name: "2".into(),
-            ..Default::default()
+        Block {
+            // 2 - Forces math block to update: B
+            wires: vec![0],
+            name: Some("2".into()),
+            ..Block::new(78, 0) // OR
         },
-        Block { // 3 - Main math block input (for tempo): C
-            id: 78, // OR
-            connections: vec![0],
-            name: "3".into(),
-            ..Default::default()
+        Block {
+            // 3 - Main math block input (for tempo): C
+            wires: vec![0],
+            name: Some("3".into()),
+            ..Block::new(78, 0) // OR
         },
-        Block { // 4 - Main math block output: D
-            id: 78, // OR
-            name: "4".into(),
-            ..Default::default()
-        }
+        Block {
+            // 4 - Main math block output: D
+            name: Some("4".into()),
+            ..Block::new(78, 0) // OR
+        },
     ];
 
     // Generating funcs and creating blocks
     for (c, channel_changes) in note_changes.into_iter().enumerate() {
         blocks.push(Block {
-            id: 129,
-            metadata: Some(Metadata {
-                type_settings: TypeSettings::MathBlock {
-                    function: decoder_func.clone(),
-                           incoming_connections_order: Vec::new(),
-                           slots: Vec::new()
-                },
+            settings: Some(BlockSettings {
+                custom: Some(CustomData::Math(MathData {
+                    expression: decoder_func.clone(),
+                    ..Default::default()
+                })),
                 ..Default::default()
             }),
-            ..Default::default()
+            ..Block::new(129, 0)
         });
-        let decoder_index: u16 = (blocks.len() - 1).try_into()?;
+        let decoder_index = blocks.len() - 1;
 
         blocks.push(Block {
-            id: 78,
-            connections: vec![decoder_index],
-            ..Default::default()
+            wires: vec![decoder_index as i32],
+            ..Block::new(78, 0)
         });
-        let decoder_input_index: u16 = (blocks.len() - 1).try_into()?;
+        let decoder_input_index = blocks.len() - 1;
 
         for n in 0..notes_per_value {
             let index = c * notes_per_value as usize + n as usize;
             let &pitch = match pitches.get(index) {
                 Some(p) => p,
-                None    => continue
+                None => continue,
             };
             let freq = pitch_to_freq(pitch);
 
             blocks.push(Block {
-                id: 125,
-                position: TONE_GEN_POSITION,
-                metadata: Some(Metadata {
+                position: tone_gen_position,
+                settings: Some(BlockSettings {
                     values: vec![freq, 100.0],
                     ..Default::default()
                 }),
-                ..Default::default()
+                ..Block::new(125, 0)
             });
-            let tone_gen_index: u16 = (blocks.len() - 1).try_into()?;
+            let tone_gen_index = blocks.len() - 1;
 
             if let Some(decoder) = blocks.get_mut(decoder_index as usize) {
-                decoder.connections.push(tone_gen_index);
+                decoder.wires.push(tone_gen_index as i32);
             }
         }
 
@@ -300,23 +338,26 @@ pub fn build_music_player(
 
         for f in functions {
             blocks.push(Block {
-                id: 129,
-                metadata: Some(Metadata {
-                    type_settings: TypeSettings::MathBlock {
-                        function: format!("x=A*{};n={};n/{}", total_len, f, 2u32.pow(notes_per_value as u32)),
-                               incoming_connections_order: Vec::new(),
-                               slots: Vec::new()
-                    },
+                settings: Some(BlockSettings {
+                    custom: Some(CustomData::Math(MathData {
+                        expression: format!(
+                            "x=A*{};n={};n/{}",
+                            total_len,
+                            f,
+                            2u32.pow(notes_per_value as u32)
+                        ),
+                        ..Default::default()
+                    })),
                     ..Default::default()
                 }),
-                connections: vec![decoder_input_index],
-                ..Default::default()
+                wires: vec![decoder_input_index as i32],
+                ..Block::new(129, 0)
             });
 
-            let data_block_index: u16 = (blocks.len() - 1).try_into()?;
+            let data_block_index = blocks.len() - 1;
 
             if let Some(main_output) = blocks.get_mut(4) {
-                main_output.connections.push(data_block_index);
+                main_output.wires.push(data_block_index as i32);
             }
         }
     }
@@ -325,29 +366,28 @@ pub fn build_music_player(
     let functions = data_to_functions(tempo_changes, max_events_per_func);
     for f in functions {
         blocks.push(Block {
-            id: 129,
-            metadata: Some(Metadata {
-                type_settings: TypeSettings::MathBlock {
-                    function: format!("x=A*{};n={};n/{}", total_len, f, 2u32.pow(24)),
-                           incoming_connections_order: Vec::new(),
-                           slots: Vec::new()
-                },
+            settings: Some(BlockSettings {
+                custom: Some(CustomData::Math(MathData {
+                    expression: format!("x=A*{};n={};n/{}", total_len, f, 2u32.pow(24)),
+                    ..Default::default()
+                })),
                 ..Default::default()
             }),
-            connections: vec![3],
-            ..Default::default()
+            wires: vec![3],
+            ..Block::new(129, 0)
         });
 
-        let data_block_index: u16 = (blocks.len() - 1).try_into()?;
+        let data_block_index = blocks.len() - 1;
 
         if let Some(main_output) = blocks.get_mut(4) {
-            main_output.connections.push(data_block_index);
+            main_output.wires.push(data_block_index as i32);
         }
     }
 
-    Ok(Building {
+    Ok(Structure {
         roots: vec![Root::default()],
-        blocks
+        blocks,
+        ..Default::default()
     })
 }
 
@@ -358,15 +398,10 @@ pub fn generate_music_player(
     max_pitch: u8,
     min_velocity: u8,
     repeat: bool,
-    max_events_per_func: usize
-) -> Result<Building> {
-    let (ppq, note_changes, pitches, tempo_changes, total_len) = midi_to_data_changes(
-        smf,
-        min_pitch,
-        max_pitch,
-        min_velocity,
-        notes_per_value
-    )?;
+    max_events_per_func: usize,
+) -> Result<Structure> {
+    let (ppq, note_changes, pitches, tempo_changes, total_len) =
+        midi_to_data_changes(smf, min_pitch, max_pitch, min_velocity, notes_per_value)?;
 
     Ok(build_music_player(
         note_changes,
@@ -376,6 +411,6 @@ pub fn generate_music_player(
         max_events_per_func,
         total_len,
         ppq,
-        repeat
+        repeat,
     )?)
 }

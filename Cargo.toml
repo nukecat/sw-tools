@@ -1,12 +1,9 @@
 [package]
 name = "midi2swstruct"
-version = "0.2.11"
+version = "0.4.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.100"
 clap = { version = "4.5.53", features = ["derive"] }
-midly = "0.5.3"
-num-traits = "0.2.19"
-sw-structure-io = { git = "https://github.com/nukecat/sw-structure-io.git" }
-thiserror = "2.0.18"
+sw-formats = { git = "https://github.com/nukecat/sw-formats", version = "0.1.0" }
+midly = { version = "0.5.3" }
