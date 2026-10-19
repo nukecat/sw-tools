@@ -173,15 +173,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 
 [[package]]
-name = "midi2swstruct"
-version = "0.4.0"
-dependencies = [
- "clap",
- "midly",
- "sw-formats",
-]
-
-[[package]]
 name = "midly"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -262,6 +253,15 @@ version = "0.1.0"
 source = "git+https://github.com/nukecat/sw-formats#0d51ce53fe3df2b259a0867e97f90a1645f281f5"
 dependencies = [
  "flate2",
+]
+
+[[package]]
+name = "sw-tools"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "midly",
+ "sw-formats",
 ]
 
 [[package]]
