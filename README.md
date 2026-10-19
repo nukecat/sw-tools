@@ -2,9 +2,6 @@
 
 `midi2swstruct` is a Rust CLI tool that **converts MIDI files into Sandbox World structure files**. The generated structure includes a music player with encoded MIDI data, playable within Sandbox World.
 
-## Archived
-This project is no longer maintained because i'm lazy and i don't have intrest to invest time in this.
-
 ---
 
 ## Features
@@ -31,7 +28,6 @@ midi2swstruct song.mid [options]
 | `--stdout`                | Output to stdout                      | false                 |
 | `--min-pitch`             | Minimal note pitch                    | 27                    |
 | `--max-pitch`             | Maximal note pitch                    | 111                   |
-| `-s, --structure-version` | Structure version                     | 0                     |
 | `--max-events-per-func`   | Max events per function               | 1024                  |
 | `--min-velocity`          | Minimal note velocity to trigger note | 1                     |
 | `-r, --repeat`            | Repeat music (loop)                   | false                 |
