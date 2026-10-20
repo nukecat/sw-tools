@@ -23,6 +23,7 @@ enum Commands {
     MusicPlayer(MusicPlayerArgs),
     /// Converts glTF file to structure
     Mesh(MeshArgs),
+    PixelArt(PixelArtArgs),
 }
 
 #[derive(Args)]
@@ -107,6 +108,33 @@ struct MeshArgs {
     mirror: mesh::Mirror,
 }
 
+#[derive(Args)]
+struct PixelArtArgs {
+    /// Input image. Many of common formats are supported.
+    #[arg(value_name = "INPUT", required = true)]
+    input: PathBuf,
+
+    /// Optional output path.
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Optional path to the building that will represent one pixel.
+    #[arg(short, long)]
+    element: Option<PathBuf>,
+
+    /// Block to build with: metal, wood, glass, neon, or any block by
+    /// name or ID.
+    #[arg(short, long, default_value_t = 0)]
+    block: i32,
+
+    /// Spacing between blocks
+    #[arg(short, long, default_value_t = 1.0)]
+    spacing: f32,
+
+    #[arg(short, long, default_value_t = 0.0)]
+    value: f32,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::parse();
 
@@ -160,6 +188,19 @@ fn main() -> Result<(), Box<dyn Error>> {
                 stats.merged_quads,
                 path.display()
             );
+        },
+        Commands::PixelArt(args) => {
+            let mut buffer = Vec::new();
+            File::open(&args.input)?.read_to_end(&mut buffer)?;
+
+            let structure = pixel_art::generate(&buffer, args.block, args.spacing, args.value)?;
+
+            let path = match args.output {
+                Some(p) => p,
+                None => Path::new(args.input.file_name().unwrap()).with_extension("structure"),
+            };
+
+            structure.save(&path, &Default::default())?;
         }
     }
 
