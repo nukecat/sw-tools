@@ -1,6 +1,6 @@
 # sw-tools
 
-Set of tools that can read, generate and manipulate with Sandbox World `.structure`, `.swmap` and `.save` files.
+Set of tools that can read, generate and manipulate Sandbox World `.structure`, `.swmap` and `.save` files.
 
 ## `mesh`: glTF to structure
 
