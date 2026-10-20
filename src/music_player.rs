@@ -8,6 +8,7 @@ use sw_formats::structure::{Block, BlockSettings, CustomData, MathData, Root, St
 #[derive(Debug)]
 pub enum MusicPlayerError {
     Format(fmt::Error),
+    Midi(midly::Error),
     Unsupported(String),
 }
 
@@ -16,6 +17,7 @@ impl fmt::Display for MusicPlayerError {
         match self {
             MusicPlayerError::Unsupported(msg) => write!(f, "unsupported: {msg}"),
             MusicPlayerError::Format(err) => write!(f, "format error: {err}"),
+            MusicPlayerError::Midi(err) => write!(f, "midi error: {err}"),
         }
     }
 }
@@ -24,6 +26,7 @@ impl Error for MusicPlayerError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             MusicPlayerError::Format(err) => Some(err),
+            MusicPlayerError::Midi(err) => Some(err),
             _ => None,
         }
     }
@@ -35,10 +38,16 @@ impl From<fmt::Error> for MusicPlayerError {
     }
 }
 
+impl From<midly::Error> for MusicPlayerError {
+    fn from(value: midly::Error) -> Self {
+        Self::Midi(value)
+    }
+}
+
 type Result<T> = std::result::Result<T, MusicPlayerError>;
 
 pub fn generate(
-    smf: Smf,
+    midi_raw: &[u8],
     notes_per_value: u8,
     min_pitch: u8,
     max_pitch: u8,
@@ -46,6 +55,8 @@ pub fn generate(
     repeat: bool,
     max_events_per_func: usize,
 ) -> Result<Structure> {
+    let smf = Smf::parse(midi_raw)?;
+
     let (ppq, note_changes, pitches, tempo_changes, total_len) = midi_to_data_changes(smf, min_pitch, max_pitch, min_velocity, notes_per_value)?;
 
     Ok(build_music_player(

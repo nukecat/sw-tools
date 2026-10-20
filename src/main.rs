@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand, Args};
-use midly::Smf;
 use std::path::Path;
 use std::{error::Error, fs::File, path::PathBuf};
 use std::io::Read;
@@ -11,7 +10,7 @@ use sw_tools::*;
 #[command(
     version,
     about = "Tools for Sandbox World formats",
-    long_about = "Set of tools that can read, generate and manipulate Sandbox World .structure, .swmap and .save files"
+    long_about = "Set of tools that can read, generate and manipulate with Sandbox World .structure, .swmap and .save files"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -22,6 +21,8 @@ struct Cli {
 enum Commands {
     /// Converts MIDI-file to structure
     MusicPlayer(MusicPlayerArgs),
+    /// Converts glTF file to structure
+    Mesh(MeshArgs),
 }
 
 #[derive(Args)]
@@ -59,6 +60,25 @@ pub struct MusicPlayerArgs {
     notes_per_value: u8,
 }
 
+#[derive(Args)]
+struct MeshArgs {
+    /// Input glTF.
+    #[arg(value_name = "INPUT", required = true)]
+    input: PathBuf,
+
+    /// Optional output path.
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Mode
+    #[arg(short, long, default_value = "hollow")]
+    mode: mesh::Mode,
+
+    /// Thickness
+    #[arg(short, long, default_value_t = 0.05)]
+    thickness: f32,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::parse();
 
@@ -67,10 +87,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             let mut buffer = Vec::new();
             File::open(&args.input)?.read_to_end(&mut buffer)?;
 
-            let smf = Smf::parse(&buffer)?;
-
             let structure = music_player::generate(
-                smf,
+                &buffer,
                 args.notes_per_value,
                 args.min_pitch,
                 args.max_pitch,
@@ -78,6 +96,19 @@ fn main() -> Result<(), Box<dyn Error>> {
                 args.repeat,
                 args.max_events_per_func,
             )?;
+
+            let path = match args.output {
+                Some(p) => p,
+                None => Path::new(args.input.file_name().unwrap()).with_extension("structure"),
+            };
+
+            structure.save(path, &Default::default())?;
+        },
+        Commands::Mesh(args) => {
+            let mut buffer = Vec::new();
+            File::open(&args.input)?.read_to_end(&mut buffer)?;
+
+            let structure = mesh::generate(&buffer, args.mode, args.thickness)?;
 
             let path = match args.output {
                 Some(p) => p,
