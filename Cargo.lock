@@ -483,6 +483,7 @@ dependencies = [
  "glam",
  "gltf",
  "midly",
+ "serde_json",
  "sw-formats",
 ]
 
