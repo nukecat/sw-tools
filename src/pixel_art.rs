@@ -1,6 +1,6 @@
 use std::{error::Error, fmt, io::Cursor};
 
-use sw_formats::{catalog::BlockCatalog, primitives::{Rgba32, Vec3}, structure::{Block, Root, Structure}};
+use sw_formats::{primitives::{Rgba32, Vec3}, structure::{Block, Root, Structure}};
 use image::{GenericImageView, ImageError, ImageReader, Rgba};
 
 #[derive(Debug)]
@@ -20,6 +20,7 @@ impl Error for PixelArtError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             PixelArtError::Image(err) => Some(err),
+            // _ => None,
         }
     }
 }

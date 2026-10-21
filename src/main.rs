@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand, Args};
+use sw_formats::catalog::BlockCatalog;
 use std::path::Path;
 use std::{error::Error, fs::File, path::PathBuf};
 use std::io::Read;
@@ -23,6 +24,7 @@ enum Commands {
     MusicPlayer(MusicPlayerArgs),
     /// Converts glTF file to structure
     Mesh(MeshArgs),
+    /// Converts image to the structure
     PixelArt(PixelArtArgs),
 }
 
@@ -83,7 +85,7 @@ struct MeshArgs {
 
     /// Block to build with: metal, wood, glass, neon, or any custom-shape block by
     /// name or ID. A glTF can override this per object with `sw_block` in its extras.
-    #[arg(short, long, default_value = "metal", value_parser = mesh::parse_block)]
+    #[arg(short, long, default_value = "metal", value_parser = parsers::custom_block)]
     block: i32,
 
     /// Auto paints blocks from the material color, vertex colors, textures and
@@ -124,7 +126,7 @@ struct PixelArtArgs {
 
     /// Block to build with: metal, wood, glass, neon, or any block by
     /// name or ID.
-    #[arg(short, long, default_value_t = 0)]
+    #[arg(short, long, default_value_t = 0, value_parser = parsers::not_a_tool)]
     block: i32,
 
     /// Spacing between blocks
@@ -133,6 +135,13 @@ struct PixelArtArgs {
 
     #[arg(short, long, default_value_t = 0.0)]
     value: f32,
+}
+
+fn print_block(id: i32) -> Result<(), Box<dyn Error>> {
+    let catalog = BlockCatalog::shared();
+    let block_name = catalog.get(id).ok_or(format!("unknown block with id {}", id))?.name.clone();
+    println!("Using block with ID {}, name \"{}\"", id, block_name);
+    Ok(())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -164,6 +173,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             let mut buffer = Vec::new();
             File::open(&args.input)?.read_to_end(&mut buffer)?;
 
+            print_block(args.block)?;
+
             let options = mesh::Options {
                 mode: args.mode,
                 thickness: args.thickness,
@@ -192,6 +203,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         Commands::PixelArt(args) => {
             let mut buffer = Vec::new();
             File::open(&args.input)?.read_to_end(&mut buffer)?;
+
+            print_block(args.block)?;
 
             let structure = pixel_art::generate(&buffer, args.block, args.spacing, args.value)?;
 
