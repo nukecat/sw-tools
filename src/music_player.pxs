@@ -72,7 +72,7 @@ elif state != 0:
 
 # Outputs are rewritten every tick so they never depend on slots persisting.
 for k in range(keys):
-    out(k, held[k])
+    out(k + 1, held[k])
 
 # @DISPLAY_BEGIN@
 # Screen: title, key activity, elapsed/total time and a progress bar.
