@@ -2,6 +2,10 @@
 
 Command line tools for Sandbox World formats.
 
+## pixel-art
+
+Turns image into a `.structure` you can spawn in the game
+
 ## music-player
 
 Turns a MIDI file into a `.structure` you can spawn in the game:
