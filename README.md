@@ -1,7 +1,28 @@
 # sw-tools
 
-Set of tools that can read, generate and manipulate Sandbox World `.structure`, `.swmap` and `.save` files.
+Command line tools for Sandbox World formats.
 
+## music-player
+
+Turns a MIDI file into a `.structure` you can spawn in the game:
+
+```
+sw-tools music-player song.mid -o song.structure [--repeat] [--include-drums] [--no-display] [--title "My song"]
+```
+
+The structure contains a **microcontroller** running a generated PixelScript program, a **switch**
+and one **tone generator** per pitch used by the song. The whole song is a single `data` table
+in the script, so it is stored as raw bytes and costs no script text.
+
+- Switch on: play. Switch off: stop and rewind.
+- The microcontroller's outputs drive the tone generators (output *n* = *n*-th lowest pitch).
+- Unless `--no-display` is given, its screen shows the title, active keys, elapsed/total time
+  and a progress bar. It adapts to any display size.
+- Tempo changes are baked into the table, so playback needs no tempo logic. The drum channel is
+  skipped unless `--include-drums` is given.
+- A microcontroller has at most 127 outputs here, so a song may use at most 127 distinct pitches
+  (narrow `--min-pitch` / `--max-pitch` if needed).
+  
 ## `mesh`: glTF to structure
 
 ```

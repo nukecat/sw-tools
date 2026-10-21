@@ -39,28 +39,33 @@ pub struct MusicPlayerArgs {
     output: Option<PathBuf>,
 
     /// Minimal note pitch.
-    #[arg(long, default_value_t = 27, value_parser = clap::value_parser!(u8).range(0..127))]
+    #[arg(long, default_value_t = 27, value_parser = clap::value_parser!(u8).range(0..=127))]
     min_pitch: u8,
 
     /// Maximal note pitch.
-    #[arg(long, default_value_t = 111, value_parser = clap::value_parser!(u8).range(0..127))]
+    #[arg(long, default_value_t = 111, value_parser = clap::value_parser!(u8).range(0..=127))]
     max_pitch: u8,
 
-    /// Maximal amount of events per function.
-    #[arg(long, default_value_t = 1024)]
-    max_events_per_func: usize,
-
-    /// Minimal velocity for note to be flagged as active.
-    #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u8).range(0..127))]
+    /// Notes quieter than this are ignored.
+    #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u8).range(0..=127))]
     min_velocity: u8,
 
     /// If true, music will repeat.
     #[arg(short, long, default_value_t = false)]
     repeat: bool,
 
-    /// How many note changes can be encoded in one value.
-    #[arg(short, long, default_value_t = 24, value_parser = clap::value_parser!(u8).range(1..=24))]
-    notes_per_value: u8,
+    /// Also play the percussion channel (MIDI channel 10), which is skipped by default
+    /// because drum notes are not pitches.
+    #[arg(long, default_value_t = false)]
+    include_drums: bool,
+
+    /// Don't draw anything on the microcontroller's screen.
+    #[arg(long, default_value_t = false)]
+    no_display: bool,
+
+    /// Title shown on the screen. Defaults to the name of the MIDI file.
+    #[arg(long)]
+    title: Option<String>,
 }
 
 #[derive(Args)]
@@ -152,14 +157,24 @@ fn main() -> Result<(), Box<dyn Error>> {
             let mut buffer = Vec::new();
             File::open(&args.input)?.read_to_end(&mut buffer)?;
 
+            let title = args.title.unwrap_or_else(|| {
+                args.input
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default()
+            });
+
             let structure = music_player::generate(
                 &buffer,
-                args.notes_per_value,
-                args.min_pitch,
-                args.max_pitch,
-                args.min_velocity,
-                args.repeat,
-                args.max_events_per_func,
+                &music_player::Options {
+                    min_pitch: args.min_pitch,
+                    max_pitch: args.max_pitch,
+                    min_velocity: args.min_velocity,
+                    repeat: args.repeat,
+                    include_drums: args.include_drums,
+                    display: !args.no_display,
+                    title,
+                },
             )?;
 
             let path = match args.output {
