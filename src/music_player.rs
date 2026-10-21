@@ -26,6 +26,11 @@ const WAIT: u8 = 0xFF;
 const MAX_KEYS: usize = 127;
 /// Largest delay one event can carry (two bytes, milliseconds).
 const MAX_DELAY_MS: u64 = 0xFFFF;
+/// A key that is struck again while it is still sounding is released this long before the new
+/// note, so the repeat is audible. It must span at least one game tick (20 ms at 50 Hz).
+/// Strikes closer together than twice this are one attack as far as the game can tell, and are
+/// merged: two instruments doubling a note a few milliseconds apart must not cut each other.
+const RETRIGGER_GAP_MS: u64 = 25;
 /// The microcontroller header stores the source length in 15 bits.
 const MAX_SOURCE_LEN: usize = 0x7FFF;
 
@@ -229,31 +234,48 @@ fn parse_midi(midi_raw: &[u8], options: &Options) -> Result<Song> {
     notes.sort_by_key(|n| n.0);
     let tempo_map = TempoMap::new(ppq, tempos);
 
-    // Several tracks (or a repeated note) can hold the same key at once. Count the holders and
-    // only report the moments when a key really goes down or up.
+    // Several tracks can hold the same key at once, so holders are counted and a key is only
+    // reported going down or up when the count crosses zero. A note-on on a key that is already
+    // sounding is a new attack though (a repeated note, or two instruments on one pitch): it
+    // releases the key briefly first, otherwise repeated notes fuse into one long note.
     let mut holders = [0u32; 128];
     let mut sounding = [false; 128];
+    let mut last_down_ms = [0u64; 128];
+    // (ms, key, on); the order inside one millisecond is kept (stable sort below).
     let mut changes: Vec<(u64, u8, bool)> = Vec::new();
 
     let mut i = 0;
     while i < notes.len() {
         let tick = notes[i].0;
+        let ms = tempo_map.millis(tick);
         let mut j = i;
+        let mut struck = [false; 128];
         while j < notes.len() && notes[j].0 == tick {
             let (_, key, on) = notes[j];
             let count = &mut holders[key as usize];
             *count = if on { *count + 1 } else { count.saturating_sub(1) };
+            struck[key as usize] |= on;
             j += 1;
         }
         for &(_, key, _) in &notes[i..j] {
-            let now = holders[key as usize] > 0;
-            if now != sounding[key as usize] {
-                sounding[key as usize] = now;
-                changes.push((tick, key, now));
+            let k = key as usize;
+            let now = holders[k] > 0;
+            if now && sounding[k] && struck[k] && ms - last_down_ms[k] >= 2 * RETRIGGER_GAP_MS {
+                changes.push((ms - RETRIGGER_GAP_MS, key, false));
+                changes.push((ms, key, true));
+                last_down_ms[k] = ms;
+            } else if now != sounding[k] {
+                changes.push((ms, key, now));
+                if now {
+                    last_down_ms[k] = ms;
+                }
             }
+            sounding[k] = now;
+            struck[k] = false; // handle each key once per tick
         }
         i = j;
     }
+    changes.sort_by_key(|c| c.0);
 
     let mut keys: Vec<u8> = changes.iter().map(|c| c.1).collect();
     keys.sort_unstable();
@@ -275,15 +297,11 @@ fn parse_midi(midi_raw: &[u8], options: &Options) -> Result<Song> {
 
     let events: Vec<KeyEvent> = changes
         .iter()
-        .map(|&(tick, key, on)| KeyEvent {
-            ms: tempo_map.millis(tick),
-            key: keys.binary_search(&key).unwrap(),
-            on,
-        })
+        .map(|&(ms, key, on)| KeyEvent { ms, key: keys.binary_search(&key).unwrap(), on })
         .collect();
 
-    let last_tick = changes.last().map_or(0, |c| c.0);
-    let total_ms = tempo_map.millis(end_tick.max(last_tick));
+    let last_ms = changes.last().map_or(0, |c| c.0);
+    let total_ms = tempo_map.millis(end_tick).max(last_ms);
 
     Ok(Song { keys, events, total_ms })
 }
@@ -528,8 +546,12 @@ mod tests {
             vec![(240, note(1, 60, 100)), (720, off(1, 60))],
         ]);
         let song = parse_midi(&raw, &Options::default()).unwrap();
-        // Down at 0, still down at 250 and 500, up when the *last* holder lets go at 750.
-        assert_eq!(song.events, vec![ev(0, 0, true), ev(750, 0, false)]);
+        // Down at 0. The second track strikes the key again at 250 (released 30 ms before),
+        // and it only comes up when the *last* holder lets go at 750.
+        assert_eq!(
+            song.events,
+            vec![ev(0, 0, true), ev(225, 0, false), ev(250, 0, true), ev(750, 0, false)]
+        );
     }
 
     #[test]
@@ -547,6 +569,33 @@ mod tests {
 
         let with_drums = Options { include_drums: true, ..Options::default() };
         assert_eq!(parse_midi(&raw, &with_drums).unwrap().keys, vec![40, 60, 62]);
+    }
+
+    #[test]
+    fn repeated_note_is_released_before_the_next_strike() {
+        // The first note ends on the very tick the second one starts.
+        let raw = midi(vec![vec![
+            (0, note(0, 60, 100)),
+            (480, off(0, 60)),
+            (480, note(0, 60, 100)),
+            (960, off(0, 60)),
+        ]]);
+        let song = parse_midi(&raw, &Options::default()).unwrap();
+        assert_eq!(
+            song.events,
+            vec![ev(0, 0, true), ev(475, 0, false), ev(500, 0, true), ev(1000, 0, false)]
+        );
+    }
+
+    #[test]
+    fn strikes_a_few_milliseconds_apart_are_one_attack() {
+        // Two tracks doubling a note 5 ms apart: no gap may be cut between them.
+        let raw = midi(vec![
+            vec![(0, note(0, 60, 100)), (480, off(0, 60))],
+            vec![(5, note(1, 60, 100)), (480, off(1, 60))],
+        ]);
+        let song = parse_midi(&raw, &Options::default()).unwrap();
+        assert_eq!(song.events, vec![ev(0, 0, true), ev(500, 0, false)]);
     }
 
     #[test]
