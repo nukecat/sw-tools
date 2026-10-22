@@ -26,6 +26,8 @@ enum Commands {
     Mesh(MeshArgs),
     /// Converts image to the structure
     PixelArt(PixelArtArgs),
+    /// Prints whole list of blocks, props or layers
+    Catalog(CatalogArgs),
 }
 
 #[derive(Args)]
@@ -142,6 +144,12 @@ struct PixelArtArgs {
     value: f32,
 }
 
+#[derive(Args)]
+struct CatalogArgs {
+    #[arg(value_name = "CATEGORY", required = true)]
+    category: catalog::Category,
+}
+
 fn print_block(id: i32) -> Result<(), Box<dyn Error>> {
     let catalog = BlockCatalog::shared();
     let block_name = catalog.get(id).ok_or(format!("unknown block with id {}", id))?.name.clone();
@@ -229,7 +237,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             };
 
             structure.save(&path, &Default::default())?;
-        }
+        },
+        Commands::Catalog(args) => args.category.print(),
     }
 
     Ok(())
