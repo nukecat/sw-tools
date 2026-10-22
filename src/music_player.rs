@@ -689,6 +689,6 @@ mod tests {
         assert!(source(true).contains("draw_keys"));
         let plain = source(false);
         assert!(!plain.contains("draw_keys") && !plain.contains("DISPLAY"));
-        assert!(plain.contains("out(k, held[k])"));
+        assert!(plain.contains("out(k + 1, held[k])"));
     }
 }
