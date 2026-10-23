@@ -9,6 +9,7 @@ Command line tools for reading, generating and manipulating Sandbox World files
 | [`music-player`](#music-player) | MIDI file | `.structure` | Builds a working music player |
 | [`mesh`](#mesh) | glTF / GLB | `.structure` | Builds a 3D model out of plates or bars |
 | [`catalog`](#catalog) | none | text | Lists blocks, props or layers and their IDs |
+| [`insert-data`](#insert-data) | `.structure`, binary | `.structure` | Insert binary data into microcontrollers |
 
 ## Installation
 
