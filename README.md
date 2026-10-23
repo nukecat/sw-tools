@@ -239,8 +239,8 @@ ______________________________________________________________________
 Inserts data into microcontroller in the `.structure`
 
 ```
-sw-tools insert-data display.structure nukcat.png
-sw-tools insert-data number_recognition.structure layer_5_weights.bin --name "Layer 5" --magic "deadbeef"
+sw-tools insert-data display.structure nukcat.png -i
+sw-tools insert-data number_recognition.structure layer_5_weights.bin --name "Layer 5" --magic "deadbeef" -i
 ```
 
 | Option | Default | Description |
