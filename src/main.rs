@@ -7,7 +7,7 @@ use std::io::Read;
 use sw_tools::*;
 
 #[derive(Parser)]
-#[command(name = "midi2swstruct")]
+#[command(name = "sw-tools")]
 #[command(
     version,
     about = "Tools for Sandbox World formats",
