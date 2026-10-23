@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand, Args};
-use sw_formats::catalog::BlockCatalog;
+use sw_formats::{catalog::BlockCatalog, structure::Structure};
 use std::path::Path;
 use std::{error::Error, fs::File, path::PathBuf};
 use std::io::Read;
@@ -28,6 +28,8 @@ enum Commands {
     PixelArt(PixelArtArgs),
     /// Prints whole list of blocks, props or layers
     Catalog(CatalogArgs),
+    /// Inserts binary data into microcontroller
+    InsertData(InsertDataArgs),
 }
 
 #[derive(Args)]
@@ -150,6 +152,29 @@ struct CatalogArgs {
     category: catalog::Category,
 }
 
+#[derive(Args)]
+struct InsertDataArgs {
+    /// Input structure.
+    #[arg(value_name = "INPUT", required = true)]
+    input: PathBuf,
+
+    /// Input binary whose bytes will be inserted. Use `-` for stdin
+    #[arg(value_name = "BINARY", required = true)]
+    binary: PathBuf,
+
+    /// Optional output path.
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Optional name to help identify a specific microcontroller block
+    #[arg(short, long)]
+    name: Option<String>,
+
+    /// Optional base16 string to help identify a specific data array
+    #[arg(short, long)]
+    magic: Option<String>,
+}
+
 fn print_block(id: i32) -> Result<(), Box<dyn Error>> {
     let catalog = BlockCatalog::shared();
     let block_name = catalog.get(id).ok_or(format!("unknown block with id {}", id))?.name.clone();
@@ -239,6 +264,30 @@ fn main() -> Result<(), Box<dyn Error>> {
             structure.save(&path, &Default::default())?;
         },
         Commands::Catalog(args) => args.category.print(),
+        Commands::InsertData(args) => {
+            let mut structure = Structure::load(&args.input)?;
+
+            let mut buffer = Vec::new();
+            File::open(&args.binary)?.read_to_end(&mut buffer)?;
+
+            let blob: Option<Vec<u8>> = if let Some(magic) = args.magic {
+                Some(hex::decode(&magic)?)
+            } else {
+                None
+            };
+
+            insert_data::insert_data(&mut structure, &buffer, insert_data::Filter {
+                name: args.name,
+                blob: blob,
+            })?;
+
+            let path = match args.output {
+                Some(p) => p,
+                None => args.input,
+            };
+
+            structure.save(path, &Default::default())?;
+        }
     }
 
     Ok(())

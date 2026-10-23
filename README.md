@@ -35,7 +35,7 @@ Conventions shared by all commands that produce a structure:
   Run [`sw-tools catalog blocks`](#catalog) to see what is available. A name only needs to be
   unambiguous; if it matches several blocks, the command stops and asks you to be more specific.
 
----
+______________________________________________________________________
 
 ## pixel-art
 
@@ -56,7 +56,7 @@ centered horizontally, with the top row of the image at the top.
 | `-s, --spacing` | `1` | Distance between neighboring blocks. |
 | `-v, --value` | `0` | State value applied to every block. |
 
----
+______________________________________________________________________
 
 ## music-player
 
@@ -98,7 +98,7 @@ How it works:
 **Limit:** a microcontroller has at most 127 usable outputs here, so a song may use at most
 127 distinct pitches. If it uses more, narrow the range with `--min-pitch` and `--max-pitch`.
 
----
+______________________________________________________________________
 
 ## mesh
 
@@ -210,12 +210,14 @@ way to build one model out of several block types.
 Mistakes, such as an unknown block name or a bad color, stop the run with a message that names
 the object they are on.
 
----
+______________________________________________________________________
 
 ## catalog
 
 Prints a table of everything the game knows about, so you can look up IDs for the `--block`
 options above.
+
+______________________________________________________________________
 
 ```
 sw-tools catalog blocks
@@ -229,7 +231,34 @@ sw-tools catalog layers
 | `props` | Map props, grouped by category (trees, rocks, buildings, roads, bridges, ...) |
 | `layers` | Map layers, followed by the layers that a new map starts with |
 
----
+______________________________________________________________________
+
+## insert-data
+
+Inserts data into microcontroller in the `.structure`
+
+```
+sw-tools insert-data display.structure nukcat.png
+sw-tools insert-data number_recognition.structure layer_5_weights.bin --name "Layer 5" --magic "deadbeef"
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `-o, --output` | input file path | Optional output path |
+| `-n, --name` | none | Optional name to help identify a specific microcontroller block |
+| `-m, --magic` | none | Optional base16 string to help identify a specific data array |
+
+If there is multiple microcontrollers in one `.structure`, you need to give the name to one of them
+and then specify that name when using this command.
+
+If output file is not specified, it will re-write the input file.
+
+Microcontroller data array can be empty, but it must exist. You cannot put data into microcontroller
+if it doesn't declare data array in the script.
+
+If there is multiple data arrays, you can use `--magic` option to specify what bytes of the target array are.
+
+______________________________________________________________________
 
 ## License
 
