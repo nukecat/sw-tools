@@ -3,7 +3,7 @@ use sw_formats::{catalog::{BlockCatalog, CustomDataKind}, structure::{CustomData
 
 #[derive(Debug)]
 pub enum InsertDataError {
-    Unambiguous,
+    Ambiguous,
     NotFound,
     UnknownBlockId(i32),
 }
@@ -11,7 +11,7 @@ pub enum InsertDataError {
 impl fmt::Display for InsertDataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InsertDataError::Unambiguous => write!(f, "found multiple blocks or data fields, try being more specific"),
+            InsertDataError::Ambiguous => write!(f, "found multiple blocks or data fields, try being more specific"),
             InsertDataError::NotFound => write!(f, "no block found"),
             InsertDataError::UnknownBlockId(id) => write!(f, "unknown block with id {id}"),
         }
@@ -56,7 +56,7 @@ pub fn insert_data(s: &mut Structure, data: &[u8], filter: Filter) -> Result<()>
                 for (j, blob) in m.data_blobs.iter().enumerate() {
                     if blob == f_blob {
                         if place.is_some() {
-                            return Err(InsertDataError::Unambiguous);
+                            return Err(InsertDataError::Ambiguous);
                         }
                         place = Some((i, j));
                     }
@@ -66,11 +66,11 @@ pub fn insert_data(s: &mut Structure, data: &[u8], filter: Filter) -> Result<()>
                 0 => {}
                 1 => {
                     if place.is_some() {
-                        return Err(InsertDataError::Unambiguous);
+                        return Err(InsertDataError::Ambiguous);
                     }
                     place = Some((i, 0));
                 }
-                _ => return Err(InsertDataError::Unambiguous),
+                _ => return Err(InsertDataError::Ambiguous),
             },
         }
     }
