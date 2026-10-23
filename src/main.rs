@@ -1,4 +1,4 @@
-use clap::{ArgGroup, Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use sw_formats::{catalog::BlockCatalog, structure::Structure};
 use std::path::Path;
 use std::{error::Error, fs::File, path::PathBuf};
