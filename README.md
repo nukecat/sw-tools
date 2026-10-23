@@ -248,6 +248,7 @@ sw-tools insert-data number_recognition.structure layer_5_weights.bin --name "La
 | `-o, --output` | input file path | Optional output path |
 | `-n, --name` | none | Optional name to help identify a specific microcontroller block |
 | `-m, --magic` | none | Optional base16 string to help identify a specific data array |
+| `-i, --in-place` | false | Overwrite the input structure |
 
 If there is multiple microcontrollers in one `.structure`, you need to give the name to one of them
 and then specify that name when using this command.

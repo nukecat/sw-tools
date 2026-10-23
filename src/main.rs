@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, Args};
+use clap::{ArgGroup, Args, Parser, Subcommand};
 use sw_formats::{catalog::BlockCatalog, structure::Structure};
 use std::path::Path;
 use std::{error::Error, fs::File, path::PathBuf};
@@ -163,8 +163,12 @@ struct InsertDataArgs {
     binary: PathBuf,
 
     /// Optional output path.
-    #[arg(short, long)]
+    #[arg(short, long, conflicts_with = "in_place")]
     output: Option<PathBuf>,
+
+    /// Overwrite the input structure.
+    #[arg(short, long)]
+    in_place: bool,
 
     /// Optional name to help identify a specific microcontroller block
     #[arg(short, long)]
@@ -180,6 +184,13 @@ fn print_block(id: i32) -> Result<(), Box<dyn Error>> {
     let block_name = catalog.get(id).ok_or(format!("unknown block with id {}", id))?.name.clone();
     println!("Using block with ID {}, name \"{}\"", id, block_name);
     Ok(())
+}
+
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -281,12 +292,23 @@ fn main() -> Result<(), Box<dyn Error>> {
                 blob: blob,
             })?;
 
-            let path = match args.output {
-                Some(p) => p,
-                None => args.input,
+            let path = if args.in_place {
+                args.input.clone()
+            } else if let Some(p) = args.output {
+                p
+            } else {
+                let p = PathBuf::from(args.input.file_name().unwrap());
+                if same_file(&p, &args.input) {
+                    return Err(format!(
+                        "{} is in the current directory, so the default output would overwrite it; \
+                        use --in-place or -o <path>",
+                        args.input.display()
+                    ).into());
+                }
+                p
             };
 
-            structure.save(path, &Default::default())?;
+            structure.save(&path, &Default::default())?;
         }
     }
 
