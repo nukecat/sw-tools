@@ -134,6 +134,58 @@ fn pitch_to_freq(midi: u8) -> f32 {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Sound preview
+// ---------------------------------------------------------------------------------------------
+
+/// Length of a game tick in milliseconds (50 Hz). The microcontroller only acts on ticks, so an
+/// event lands on the first tick at or after its time.
+pub const TICK_MS: u64 = 20;
+
+/// A tone generator going on or off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToneEvent {
+    /// Time since the switch was turned on, as the game plays it (a multiple of [`TICK_MS`]).
+    pub ms: u64,
+    /// Index into [`Playback::frequencies`].
+    pub tone: usize,
+    pub on: bool,
+}
+
+/// What the tone generators of the generated structure do over time, for previewing the sound.
+///
+/// Every tone generator makes a plain sine wave at its fixed frequency that is switched on and
+/// off by its microcontroller output: no envelope or other shaping. The game smooths the volume
+/// change very slightly; how much is left to whatever plays this.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Playback {
+    /// Hz of each tone generator, lowest first (the same order as the structure's blocks).
+    pub frequencies: Vec<f32>,
+    pub events: Vec<ToneEvent>,
+    /// When the song is over (and, with `repeat`, starts again), as the game plays it.
+    pub total_ms: u64,
+}
+
+fn on_tick(ms: u64) -> u64 {
+    // The first tick already spends `dt`, so even an event at 0 ms fires one tick in.
+    ms.div_ceil(TICK_MS).max(1) * TICK_MS
+}
+
+/// Same parsing as [`generate`] (so the same options apply), but returns the sound instead of
+/// the structure. `repeat`, `display` and `title` have no effect on it.
+pub fn playback(midi_raw: &[u8], options: &Options) -> Result<Playback> {
+    let song = parse_midi(midi_raw, options)?;
+    Ok(Playback {
+        frequencies: song.keys.iter().map(|&k| pitch_to_freq(k)).collect(),
+        events: song
+            .events
+            .iter()
+            .map(|e| ToneEvent { ms: on_tick(e.ms), tone: e.key, on: e.on })
+            .collect(),
+        total_ms: on_tick(song.total_ms),
+    })
+}
+
+// ---------------------------------------------------------------------------------------------
 // MIDI -> timeline
 // ---------------------------------------------------------------------------------------------
 
@@ -530,6 +582,35 @@ mod tests {
             vec![ev(0, 0, true), ev(500, 0, false), ev(500, 1, true), ev(750, 1, false)]
         );
         assert_eq!(song.total_ms, 750);
+    }
+
+    #[test]
+    fn playback_matches_the_structure_and_snaps_to_ticks() {
+        // 480 ticks = 500 ms. The second note starts 10 ms into a tick.
+        let raw = midi(vec![vec![
+            (0, note(0, 60, 100)),
+            (480, off(0, 60)),
+            (490, note(0, 69, 100)),
+            (970, off(0, 69)),
+        ]]);
+        let pb = playback(&raw, &Options::default()).unwrap();
+        assert_eq!(pb.frequencies.len(), 2);
+        assert!((pb.frequencies[0] - 261.6256).abs() < 0.01);
+        assert!((pb.frequencies[1] - 440.0).abs() < 0.01);
+        let evs: Vec<_> = pb.events.iter().map(|e| (e.ms, e.tone, e.on)).collect();
+        // 0 -> 20 (first tick), 500 stays, 510 -> 520, 1010 -> 1020
+        assert_eq!(evs, vec![(20, 0, true), (500, 0, false), (520, 1, true), (1020, 1, false)]);
+        assert!(pb.events.iter().all(|e| e.ms % TICK_MS == 0));
+        assert_eq!(pb.total_ms % TICK_MS, 0);
+        assert!(pb.total_ms >= pb.events.last().unwrap().ms);
+
+        // the structure has one tone generator per frequency, with the same frequencies
+        let s = generate(&raw, &Options::default()).unwrap();
+        let freqs: Vec<f32> = s.blocks[2..]
+            .iter()
+            .map(|b| b.settings.as_ref().unwrap().values[0])
+            .collect();
+        assert_eq!(freqs, pb.frequencies);
     }
 
     #[test]

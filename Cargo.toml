@@ -11,4 +11,15 @@ gltf = { version = "1.4.1", features = ["extras"] }
 serde_json = "1"
 glam = "0.34.1"
 image = { version = "0.25.10", default-features = false, features = ["bmp", "png", "jpeg"] }
-comfy-table = "8.0.1"
+comfy-table = { version = "8.0.1", optional = true }
+
+[features]
+default = ["cli"]
+# Terminal-only pieces: the `sw-tools` binary and the `catalog` table printing.
+# Disable with `default-features = false` to build the library for wasm32.
+cli = ["dep:comfy-table"]
+
+[[bin]]
+name = "sw-tools"
+path = "src/main.rs"
+required-features = ["cli"]
