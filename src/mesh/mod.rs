@@ -182,7 +182,9 @@ pub fn generate(data: &[u8], base: Option<&Path>, opts: &Options) -> Result<(Str
 
     // decoding textures is slow, so only do it when something will look at them
     let wants_textures = opts.color == ColorMode::Auto
-        && document.materials().any(|m| m.pbr_metallic_roughness().base_color_texture().is_some());
+        && document
+            .materials()
+            .any(|m| m.pbr_metallic_roughness().base_color_texture().is_some());
     let images = if wants_textures {
         gltf::import_images(&document, base, &buffers)?
     } else {
@@ -199,12 +201,20 @@ pub fn generate(data: &[u8], base: Option<&Path>, opts: &Options) -> Result<(Str
     ctx.out.roots.push(Root::default());
 
     // the default scene, else the first one, else every node nobody is a child of
-    let scene_roots: Vec<gltf::Node> = match document.default_scene().or_else(|| document.scenes().next()) {
+    let scene_roots: Vec<gltf::Node> = match document
+        .default_scene()
+        .or_else(|| document.scenes().next())
+    {
         Some(scene) => scene.nodes().collect(),
         None => {
-            let children: HashSet<usize> =
-                document.nodes().flat_map(|n| n.children().map(|c| c.index())).collect();
-            document.nodes().filter(|n| !children.contains(&n.index())).collect()
+            let children: HashSet<usize> = document
+                .nodes()
+                .flat_map(|n| n.children().map(|c| c.index()))
+                .collect();
+            document
+                .nodes()
+                .filter(|n| !children.contains(&n.index()))
+                .collect()
         }
     };
 
@@ -233,14 +243,20 @@ fn check_block_count(ctx: &Ctx) -> Result<()> {
 fn visit(ctx: &mut Ctx, node: gltf::Node, parent: Mat4, inherited: &Overrides) -> Result<()> {
     let node_who = who("node", node.index(), node.name());
     // a node's settings also apply to its children
-    let inherited = inherited.clone().over(Overrides::from_extras(node.extras(), &node_who)?);
+    let inherited = inherited
+        .clone()
+        .over(Overrides::from_extras(node.extras(), &node_who)?);
     let world = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
 
     if let Some(mesh) = node.mesh() {
-        let mesh_over = Overrides::from_extras(mesh.extras(), &who("mesh", mesh.index(), mesh.name()))?;
+        let mesh_over =
+            Overrides::from_extras(mesh.extras(), &who("mesh", mesh.index(), mesh.name()))?;
         let base = inherited.clone().over(mesh_over);
         for (pi, primitive) in mesh.primitives().enumerate() {
-            let label = format!("primitive {pi} of {}", who("mesh", mesh.index(), mesh.name()));
+            let label = format!(
+                "primitive {pi} of {}",
+                who("mesh", mesh.index(), mesh.name())
+            );
             emit_primitive(ctx, &primitive, &world, &base, &label)?;
         }
     }
@@ -265,7 +281,11 @@ fn emit_primitive(
 
     let material = primitive.material();
     let material_over = if material.index().is_some() {
-        let w = who("material", material.index().unwrap_or_default(), material.name());
+        let w = who(
+            "material",
+            material.index().unwrap_or_default(),
+            material.name(),
+        );
         Overrides::from_extras(material.extras(), &w)?
     } else {
         Overrides::default()
@@ -280,13 +300,16 @@ fn emit_primitive(
 
     let buffers = ctx.buffers;
     let reader = primitive.reader(|b| Some(&buffers[b.index()]));
-    let Some(positions) = reader.read_positions() else { return Ok(()) };
+    let Some(positions) = reader.read_positions() else {
+        return Ok(());
+    };
 
     let transform = opts.mirror.matrix() * Mat4::from_scale(Vec3::splat(opts.scale)) * *world;
     // an odd number of mirrors (the handedness fix, negative node scales) reverses winding
     let mirrored = transform.determinant() < 0.0;
-    let points: Vec<Vec3> =
-        positions.map(|p| transform.transform_point3(Vec3::from(p))).collect();
+    let points: Vec<Vec3> = positions
+        .map(|p| transform.transform_point3(Vec3::from(p)))
+        .collect();
 
     let indices: Vec<u32> = match reader.read_indices() {
         Some(i) => i.into_u32().collect(),
@@ -295,29 +318,43 @@ fn emit_primitive(
 
     // colors
     let colors = if opts.color == ColorMode::Auto {
-        let uv_set = material.pbr_metallic_roughness().base_color_texture().map(|t| t.tex_coord());
+        let uv_set = material
+            .pbr_metallic_roughness()
+            .base_color_texture()
+            .map(|t| t.tex_coord());
         Some(ColorSource::new(
             &material,
             reader.read_colors(0).map(|c| c.into_rgba_f32().collect()),
-            uv_set.and_then(|set| reader.read_tex_coords(set)).map(|t| t.into_f32().collect()),
+            uv_set
+                .and_then(|set| reader.read_tex_coords(set))
+                .map(|t| t.into_f32().collect()),
             ctx.images,
         ))
     } else {
         None
     };
-    let explicit = if opts.color == ColorMode::Auto { settings.color } else { None };
+    let explicit = if opts.color == ColorMode::Auto {
+        settings.color
+    } else {
+        None
+    };
 
     let mut tris = Vec::with_capacity(indices.len() / 3);
     for chunk in indices.chunks_exact(3) {
         let mut idx = [chunk[0] as usize, chunk[1] as usize, chunk[2] as usize];
         if idx.iter().any(|&i| i >= points.len()) {
-            return Err(MeshError::Invalid(format!("{label} indexes a vertex that doesn't exist")));
+            return Err(MeshError::Invalid(format!(
+                "{label} indexes a vertex that doesn't exist"
+            )));
         }
         let color = explicit.or_else(|| colors.as_ref().and_then(|c| c.triangle(idx)));
         if mirrored {
             idx.swap(1, 2);
         }
-        tris.push(Tri { p: [points[idx[0]], points[idx[1]], points[idx[2]]], color });
+        tris.push(Tri {
+            p: [points[idx[0]], points[idx[1]], points[idx[2]]],
+            color,
+        });
     }
     ctx.stats.triangles += tris.len();
 

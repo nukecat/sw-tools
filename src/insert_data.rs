@@ -1,5 +1,8 @@
 use std::{error::Error, fmt};
-use sw_formats::{catalog::{BlockCatalog, CustomDataKind}, structure::{CustomData, Structure}};
+use sw_formats::{
+    catalog::{BlockCatalog, CustomDataKind},
+    structure::{CustomData, Structure},
+};
 
 #[derive(Debug)]
 pub enum InsertDataError {
@@ -11,7 +14,10 @@ pub enum InsertDataError {
 impl fmt::Display for InsertDataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InsertDataError::Ambiguous => write!(f, "found multiple blocks or data fields, try being more specific"),
+            InsertDataError::Ambiguous => write!(
+                f,
+                "found multiple blocks or data fields, try being more specific"
+            ),
             InsertDataError::NotFound => write!(f, "no block found"),
             InsertDataError::UnknownBlockId(id) => write!(f, "unknown block with id {id}"),
         }
@@ -33,8 +39,8 @@ pub fn insert_data(s: &mut Structure, data: &[u8], filter: Filter) -> Result<()>
 
     for (i, b) in s.blocks.iter().enumerate() {
         let info = catalog
-        .get(b.id)
-        .ok_or(InsertDataError::UnknownBlockId(b.id))?;
+            .get(b.id)
+            .ok_or(InsertDataError::UnknownBlockId(b.id))?;
         if info.custom_data != CustomDataKind::Microcontroller {
             continue;
         }
@@ -46,7 +52,7 @@ pub fn insert_data(s: &mut Structure, data: &[u8], filter: Filter) -> Result<()>
         }
 
         let Some(CustomData::Microcontroller(m)) =
-        b.settings.as_ref().and_then(|st| st.custom.as_ref())
+            b.settings.as_ref().and_then(|st| st.custom.as_ref())
         else {
             continue;
         };
@@ -78,9 +84,9 @@ pub fn insert_data(s: &mut Structure, data: &[u8], filter: Filter) -> Result<()>
     let (block_idx, data_idx) = place.ok_or(InsertDataError::NotFound)?;
 
     let Some(CustomData::Microcontroller(mc)) = s.blocks[block_idx]
-    .settings
-    .as_mut()
-    .and_then(|st| st.custom.as_mut())
+        .settings
+        .as_mut()
+        .and_then(|st| st.custom.as_mut())
     else {
         unreachable!("block was matched in the search loop above");
     };

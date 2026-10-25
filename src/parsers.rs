@@ -10,12 +10,14 @@ pub fn block_id<F: FnMut(&&BlockInfo) -> bool>(mut filter: F) -> impl FnMut(&str
         if let Ok(id) = s.parse::<i32>() {
             if let Some(b) = catalog.get(id) {
                 if filter(&b) {
-                    return Ok(id)
+                    return Ok(id);
                 } else {
-                    return Err(format!("block with id \"{id}\" doesn't meet filter criteria"))
+                    return Err(format!(
+                        "block with id \"{id}\" doesn't meet filter criteria"
+                    ));
                 }
             } else {
-                return Err(format!("unknown block id: \"{id}\""))
+                return Err(format!("unknown block id: \"{id}\""));
             }
         }
 
@@ -26,7 +28,9 @@ pub fn block_id<F: FnMut(&&BlockInfo) -> bool>(mut filter: F) -> impl FnMut(&str
             .collect();
 
         if matches.len() > 1 {
-            return Err(format!("found multiple matches for the \"{s}\", try being more specific"));
+            return Err(format!(
+                "found multiple matches for the \"{s}\", try being more specific"
+            ));
         }
 
         let found = matches.last();

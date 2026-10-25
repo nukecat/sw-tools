@@ -108,7 +108,15 @@ impl Frame {
             return None;
         }
         let (top_x0, top_x1) = (d3.dot(x), d2.dot(x).max(d3.dot(x)));
-        Some(Frame { x, y, n, bottom_w, top_x0, top_x1, height })
+        Some(Frame {
+            x,
+            y,
+            n,
+            bottom_w,
+            top_x0,
+            top_x1,
+            height,
+        })
     }
 }
 
@@ -138,7 +146,9 @@ fn plate(
     out: &mut Vec<Block>,
     depth: u32,
 ) -> Result<(), MeshError> {
-    let Some(f) = Frame::new(&q) else { return Ok(()) };
+    let Some(f) = Frame::new(&q) else {
+        return Ok(());
+    };
 
     // center the block on its face so the position ranges are used symmetrically
     let x_min = 0.0f32.min(f.top_x0);
@@ -203,7 +213,10 @@ fn plate(
     out.push(Block {
         position: SwVec3::new(pos.x, pos.y, pos.z),
         rotation: unity_euler_deg(rotation),
-        settings: Some(BlockSettings { vectors, ..Default::default() }),
+        settings: Some(BlockSettings {
+            vectors,
+            ..Default::default()
+        }),
         color: paint(color),
         ..Block::new(id, 0)
     });
@@ -228,7 +241,9 @@ pub fn line(
     // the bar spans y = -len/2 ..= len/2 around its midpoint, so len <= 2 * MAX_POS_Y
     let pieces = (((total - TOL) / (2.0 * MAX_POS_Y)).ceil() as usize).max(1);
     if pieces > 1 << MAX_DEPTH {
-        return Err(MeshError::TooLarge("an edge is too long; use a smaller --scale".into()));
+        return Err(MeshError::TooLarge(
+            "an edge is too long; use a smaller --scale".into(),
+        ));
     }
     let dir = dir / total;
     let len = total / pieces as f32;

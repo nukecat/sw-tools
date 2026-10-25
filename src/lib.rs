@@ -1,9 +1,9 @@
-pub mod music_player;
-pub mod mesh;
-pub mod pixel_art;
 #[cfg(feature = "cli")]
 pub mod catalog;
-pub mod render;
-pub mod insert_data;
 pub mod hex;
+pub mod insert_data;
+pub mod mesh;
+pub mod music_player;
 pub mod parsers;
+pub mod pixel_art;
+pub mod render;

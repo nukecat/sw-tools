@@ -24,7 +24,11 @@ pub type Key = [u32; 3];
 /// Exact-position key, so duplicated vertices (UV/normal seams) still weld.
 pub fn key(p: Vec3) -> Key {
     // `+ 0.0` turns -0.0 into 0.0
-    [(p.x + 0.0).to_bits(), (p.y + 0.0).to_bits(), (p.z + 0.0).to_bits()]
+    [
+        (p.x + 0.0).to_bits(),
+        (p.y + 0.0).to_bits(),
+        (p.z + 0.0).to_bits(),
+    ]
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -39,7 +43,10 @@ pub enum Piece {
     Tri(usize),
     /// Two triangles as one trapezoid; `q` is arranged so that `q0 -> q1` and
     /// `q3 -> q2` are the parallel edges.
-    Quad { q: [Vec3; 4], color: Option<[u8; 4]> },
+    Quad {
+        q: [Vec3; 4],
+        color: Option<[u8; 4]>,
+    },
 }
 
 fn tri_normal(t: &Tri) -> Vec3 {
@@ -50,7 +57,10 @@ fn merged_color(a: Option<[u8; 4]>, b: Option<[u8; 4]>) -> Result<Option<[u8; 4]
     match (a, b) {
         (None, None) => Ok(None),
         (Some(a), Some(b)) => {
-            if a.iter().zip(&b).all(|(x, y)| x.abs_diff(*y) <= COLOR_TOLERANCE) {
+            if a.iter()
+                .zip(&b)
+                .all(|(x, y)| x.abs_diff(*y) <= COLOR_TOLERANCE)
+            {
                 let mut out = [0u8; 4];
                 for i in 0..4 {
                     out[i] = ((a[i] as u16 + b[i] as u16 + 1) / 2) as u8;
@@ -92,7 +102,12 @@ pub fn fit(t1: &Tri, k1: &[Key; 3], t2: &Tri, k2: &[Key; 3], angle_deg: f32) -> 
     }
 
     // a -> d -> b -> c is the quad's outline in winding order
-    let cyc = [t1.p[i], t2.p[(j + 2) % 3], t1.p[(i + 1) % 3], t1.p[(i + 2) % 3]];
+    let cyc = [
+        t1.p[i],
+        t2.p[(j + 2) % 3],
+        t1.p[(i + 1) % 3],
+        t1.p[(i + 2) % 3],
+    ];
 
     // convex (a straight vertex is tolerated)
     let n = (cyc[2] - cyc[0]).cross(cyc[3] - cyc[1]).normalize_or_zero();
@@ -156,7 +171,9 @@ pub fn build(tris: &[Tri], merge_angle_deg: f32) -> Vec<Piece> {
         if i == j || quads.contains_key(&pair) {
             continue;
         }
-        let Ok(color) = merged_color(tris[i].color, tris[j].color) else { continue };
+        let Ok(color) = merged_color(tris[i].color, tris[j].color) else {
+            continue;
+        };
         let Some(q) = fit(&tris[i], &keys[i], &tris[j], &keys[j], merge_angle_deg)
             .or_else(|| fit(&tris[j], &keys[j], &tris[i], &keys[i], merge_angle_deg))
         else {
@@ -173,8 +190,10 @@ pub fn build(tris: &[Tri], merge_angle_deg: f32) -> Vec<Piece> {
     // quad) wins.
     let mut matched: Vec<Option<usize>> = vec![None; n];
     let mut deg: Vec<usize> = adj.iter().map(Vec::len).collect();
-    let mut queue: BTreeSet<(usize, usize)> =
-        (0..n).filter(|&i| deg[i] > 0).map(|i| (deg[i], i)).collect();
+    let mut queue: BTreeSet<(usize, usize)> = (0..n)
+        .filter(|&i| deg[i] > 0)
+        .map(|i| (deg[i], i))
+        .collect();
 
     while let Some((_, i)) = queue.pop_first() {
         let j = adj[i]
@@ -217,11 +236,17 @@ mod tests {
     use super::*;
 
     fn tri(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> Tri {
-        Tri { p: [a.into(), b.into(), c.into()], color: None }
+        Tri {
+            p: [a.into(), b.into(), c.into()],
+            color: None,
+        }
     }
 
     fn count_quads(pieces: &[Piece]) -> usize {
-        pieces.iter().filter(|p| matches!(p, Piece::Quad { .. })).count()
+        pieces
+            .iter()
+            .filter(|p| matches!(p, Piece::Quad { .. }))
+            .count()
     }
 
     #[test]
@@ -312,7 +337,11 @@ mod tests {
                     tris.push(tri([fx, fy, 0.], [fx + 1., fy + 1., 0.], [fx, fy + 1., 0.]));
                 } else {
                     tris.push(tri([fx, fy, 0.], [fx + 1., fy, 0.], [fx, fy + 1., 0.]));
-                    tris.push(tri([fx + 1., fy, 0.], [fx + 1., fy + 1., 0.], [fx, fy + 1., 0.]));
+                    tris.push(tri(
+                        [fx + 1., fy, 0.],
+                        [fx + 1., fy + 1., 0.],
+                        [fx, fy + 1., 0.],
+                    ));
                 }
             }
         }
@@ -321,6 +350,9 @@ mod tests {
 
     #[test]
     fn negative_zero_welds() {
-        assert_eq!(key(Vec3::new(-0.0, 0.0, 1.0)), key(Vec3::new(0.0, 0.0, 1.0)));
+        assert_eq!(
+            key(Vec3::new(-0.0, 0.0, 1.0)),
+            key(Vec3::new(0.0, 0.0, 1.0))
+        );
     }
 }

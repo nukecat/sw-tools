@@ -7,19 +7,27 @@
 //! triangle's centroid.
 
 use gltf::{
+    Material,
     image::{Data as Image, Format},
     texture::WrappingMode,
-    Material,
 };
 
 pub fn srgb_to_linear(v: u8) -> f32 {
     let c = v as f32 / 255.0;
-    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    if c <= 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
 }
 
 pub fn linear_to_srgb(v: f32) -> u8 {
     let c = v.clamp(0.0, 1.0);
-    let s = if c <= 0.0031308 { c * 12.92 } else { 1.055 * c.powf(1.0 / 2.4) - 0.055 };
+    let s = if c <= 0.0031308 {
+        c * 12.92
+    } else {
+        1.055 * c.powf(1.0 / 2.4) - 0.055
+    };
     (s * 255.0).round() as u8
 }
 
@@ -68,12 +76,19 @@ impl Texture<'_> {
             Format::R8G8B8A8 => 4,
             _ => return None,
         };
-        let px = img.pixels.get((y * img.width as usize + x) * channels..)?.get(..channels)?;
+        let px = img
+            .pixels
+            .get((y * img.width as usize + x) * channels..)?
+            .get(..channels)?;
         let (r, g, b) = match channels {
             1 | 2 => (px[0], px[0], px[0]),
             _ => (px[0], px[1], px[2]),
         };
-        let a = if channels == 4 { px[3] as f32 / 255.0 } else { 1.0 };
+        let a = if channels == 4 {
+            px[3] as f32 / 255.0
+        } else {
+            1.0
+        };
         Some([srgb_to_linear(r), srgb_to_linear(g), srgb_to_linear(b), a])
     }
 }

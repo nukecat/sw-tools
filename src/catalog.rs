@@ -1,5 +1,5 @@
 use clap::ValueEnum;
-use comfy_table::{presets::NOTHING, Attribute, Cell, Color, Table};
+use comfy_table::{Attribute, Cell, Color, Table, presets::NOTHING};
 use sw_formats::catalog::{
     BlockCatalog, BlockKind, CustomDataKind, LayerInfo, MapCatalog, MapPropCategory, PropInfo,
 };
@@ -47,12 +47,19 @@ impl Category {
 fn new_table(headers: &[&str]) -> Table {
     let mut table = Table::new();
     table.load_style(NOTHING);
-    table.set_header(headers.iter().map(|h| header_cell(h)).collect::<Vec<Cell>>());
+    table.set_header(
+        headers
+            .iter()
+            .map(|h| header_cell(h))
+            .collect::<Vec<Cell>>(),
+    );
     table
 }
 
 fn header_cell(text: &str) -> Cell {
-    Cell::new(text).add_attribute(Attribute::Bold).fg(Color::Cyan)
+    Cell::new(text)
+        .add_attribute(Attribute::Bold)
+        .fg(Color::Cyan)
 }
 
 fn id_cell(id: impl ToString) -> Cell {
@@ -94,7 +101,14 @@ fn custom_data_cell(kind: &CustomDataKind) -> Cell {
 }
 
 pub fn block_table() -> Table {
-    let mut table = new_table(&["ID", "Name", "Kind", "Stateless", "Custom shape", "Custom data"]);
+    let mut table = new_table(&[
+        "ID",
+        "Name",
+        "Kind",
+        "Stateless",
+        "Custom shape",
+        "Custom data",
+    ]);
 
     for b in BlockCatalog::shared().iter() {
         table.add_row::<Vec<Cell>>(vec![
@@ -128,8 +142,18 @@ fn prop_category_cell(category: MapPropCategory) -> Cell {
 
 pub fn prop_table() -> Table {
     let mut table = new_table(&[
-        "ID", "Name", "Category", "Hidden", "Free scale", "Floors", "Default floors",
-        "Colorable", "Glowable", "Transparent", "Hidden in game", "Destroyable",
+        "ID",
+        "Name",
+        "Category",
+        "Hidden",
+        "Free scale",
+        "Floors",
+        "Default floors",
+        "Colorable",
+        "Glowable",
+        "Transparent",
+        "Hidden in game",
+        "Destroyable",
     ]);
 
     let catalog = MapCatalog::shared();

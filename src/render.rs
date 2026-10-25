@@ -44,7 +44,10 @@ impl Mesh {
     pub fn bounds(&self) -> Option<([f32; 3], [f32; 3])> {
         let mut it = self.positions.chunks_exact(3);
         let first = it.next()?;
-        let (mut lo, mut hi) = ([first[0], first[1], first[2]], [first[0], first[1], first[2]]);
+        let (mut lo, mut hi) = (
+            [first[0], first[1], first[2]],
+            [first[0], first[1], first[2]],
+        );
         for p in it {
             for i in 0..3 {
                 lo[i] = lo[i].min(p[i]);
@@ -79,7 +82,12 @@ fn default_color(kind: &BlockKind) -> [u8; 3] {
 
 fn local_corners(block: &Block, custom_shape: bool) -> ([Vec3; 8], bool) {
     if custom_shape {
-        if let Some(v) = block.settings.as_ref().map(|s| &s.vectors).filter(|v| v.len() >= 4) {
+        if let Some(v) = block
+            .settings
+            .as_ref()
+            .map(|s| &s.vectors)
+            .filter(|v| v.len() >= 4)
+        {
             let rect = |c: &sw_formats::primitives::Vec3, size: &sw_formats::primitives::Vec3| {
                 let (hx, hz) = (size.x.abs() / 2.0, size.z.abs() / 2.0);
                 [
@@ -131,7 +139,10 @@ pub fn build(s: &Structure) -> Mesh {
 
         let rgb = match b.color {
             Some(c) => [c.r, c.g, c.b],
-            None => info.as_ref().map(|i| default_color(&i.kind)).unwrap_or([168, 172, 178]),
+            None => info
+                .as_ref()
+                .map(|i| default_color(&i.kind))
+                .unwrap_or([168, 172, 178]),
         };
 
         for face in FACES {
@@ -155,7 +166,8 @@ pub fn build(s: &Structure) -> Mesh {
                 m.normals.extend_from_slice(&[n.x, n.y, n.z]);
                 m.colors.extend_from_slice(&rgb);
             }
-            m.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+            m.indices
+                .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
         }
 
         m.blocks += 1;
@@ -172,7 +184,11 @@ mod tests {
     use sw_formats::structure::{BlockSettings, Root};
 
     fn structure(blocks: Vec<Block>) -> Structure {
-        Structure { roots: vec![Root::default()], blocks, ..Default::default() }
+        Structure {
+            roots: vec![Root::default()],
+            blocks,
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -225,7 +241,11 @@ mod tests {
         let (lo, hi) = m.bounds().unwrap();
         assert!((hi[2] - lo[2] - 0.05).abs() < 1e-6, "thickness");
         assert!((hi[0] - lo[0] - 2.0).abs() < 1e-6, "width");
-        assert_eq!(m.vertex_count() / 4, 5, "top face is degenerate and skipped");
+        assert_eq!(
+            m.vertex_count() / 4,
+            5,
+            "top face is degenerate and skipped"
+        );
     }
 
     #[test]

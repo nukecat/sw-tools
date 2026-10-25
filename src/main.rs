@@ -1,8 +1,8 @@
 use clap::{Args, Parser, Subcommand};
-use sw_formats::{catalog::BlockCatalog, structure::Structure};
+use std::io::Read;
 use std::path::Path;
 use std::{error::Error, fs::File, path::PathBuf};
-use std::io::Read;
+use sw_formats::{catalog::BlockCatalog, structure::Structure};
 
 use sw_tools::*;
 
@@ -181,7 +181,11 @@ struct InsertDataArgs {
 
 fn print_block(id: i32) -> Result<(), Box<dyn Error>> {
     let catalog = BlockCatalog::shared();
-    let block_name = catalog.get(id).ok_or(format!("unknown block with id {}", id))?.name.clone();
+    let block_name = catalog
+        .get(id)
+        .ok_or(format!("unknown block with id {}", id))?
+        .name
+        .clone();
     println!("Using block with ID {}, name \"{}\"", id, block_name);
     Ok(())
 }
@@ -228,7 +232,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             };
 
             structure.save(path, &Default::default())?;
-        },
+        }
         Commands::Mesh(args) => {
             let mut buffer = Vec::new();
             File::open(&args.input)?.read_to_end(&mut buffer)?;
@@ -259,7 +263,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 stats.merged_quads,
                 path.display()
             );
-        },
+        }
         Commands::PixelArt(args) => {
             let mut buffer = Vec::new();
             File::open(&args.input)?.read_to_end(&mut buffer)?;
@@ -274,7 +278,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             };
 
             structure.save(&path, &Default::default())?;
-        },
+        }
         Commands::Catalog(args) => args.category.print(),
         Commands::InsertData(args) => {
             let mut structure = Structure::load(&args.input)?;
@@ -288,10 +292,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 None
             };
 
-            insert_data::insert_data(&mut structure, &buffer, insert_data::Filter {
-                name: args.name,
-                blob: blob,
-            })?;
+            insert_data::insert_data(
+                &mut structure,
+                &buffer,
+                insert_data::Filter {
+                    name: args.name,
+                    blob: blob,
+                },
+            )?;
 
             let path = if args.in_place {
                 args.input.clone()
@@ -304,7 +312,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                         "{} is in the current directory, so the default output would overwrite it; \
                         use --in-place or -o <path>",
                         args.input.display()
-                    ).into());
+                    )
+                    .into());
                 }
                 p
             };

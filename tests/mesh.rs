@@ -1,5 +1,5 @@
 use glam::{EulerRot, Mat4, Quat, Vec3};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sw_formats::structure::Block;
 use sw_tools::mesh::{self, ColorMode, Mirror, Mode, Options};
 
@@ -56,9 +56,14 @@ fn glb(objects: &[Object], materials: Vec<Value>) -> Vec<u8> {
                 bin.extend_from_slice(&c.to_le_bytes());
             }
         }
-        views.push(json!({"buffer": 0, "byteOffset": offset, "byteLength": o.positions.len() * 12}));
-        let min: Vec<f32> = (0..3).map(|a| o.positions.iter().map(|p| p[a]).fold(f32::MAX, f32::min)).collect();
-        let max: Vec<f32> = (0..3).map(|a| o.positions.iter().map(|p| p[a]).fold(f32::MIN, f32::max)).collect();
+        views
+            .push(json!({"buffer": 0, "byteOffset": offset, "byteLength": o.positions.len() * 12}));
+        let min: Vec<f32> = (0..3)
+            .map(|a| o.positions.iter().map(|p| p[a]).fold(f32::MAX, f32::min))
+            .collect();
+        let max: Vec<f32> = (0..3)
+            .map(|a| o.positions.iter().map(|p| p[a]).fold(f32::MIN, f32::max))
+            .collect();
         accessors.push(json!({"bufferView": views.len() - 1, "componentType": 5126,
             "count": o.positions.len(), "type": "VEC3", "min": min, "max": max}));
         let pos_acc = accessors.len() - 1;
@@ -156,16 +161,25 @@ fn same(a: Vec3, b: Vec3) -> bool {
 fn assert_corners(blocks: &[Block], expected: &[Vec3]) {
     let got: Vec<Vec3> = blocks.iter().flat_map(front_corners).collect();
     for e in expected {
-        assert!(got.iter().any(|g| same(*g, *e)), "no block corner at {e}; have {got:?}");
+        assert!(
+            got.iter().any(|g| same(*g, *e)),
+            "no block corner at {e}; have {got:?}"
+        );
     }
     for g in &got {
-        assert!(expected.iter().any(|e| same(*g, *e)), "stray block corner at {g}; expected {expected:?}");
+        assert!(
+            expected.iter().any(|e| same(*g, *e)),
+            "stray block corner at {g}; expected {expected:?}"
+        );
     }
 }
 
 /// Existing tests check raw glTF coordinates, so they run without the handedness fix.
 fn opts() -> Options {
-    Options { mirror: Mirror::None, ..Default::default() }
+    Options {
+        mirror: Mirror::None,
+        ..Default::default()
+    }
 }
 
 fn run(data: &[u8], opts: &Options) -> (Vec<Block>, mesh::Stats) {
@@ -177,7 +191,12 @@ fn v(p: [f32; 3]) -> Vec3 {
     p.into()
 }
 
-const RECT: [[f32; 3]; 4] = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [2.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
+const RECT: [[f32; 3]; 4] = [
+    [0.0, 0.0, 0.0],
+    [2.0, 0.0, 0.0],
+    [2.0, 1.0, 0.0],
+    [0.0, 1.0, 0.0],
+];
 const QUAD_IDX: [u16; 6] = [0, 1, 2, 0, 2, 3];
 
 // ------------------------------------------------------------------------ quads
@@ -204,7 +223,10 @@ fn slanted_trapezoid_in_3d_is_one_block_with_exact_corners() {
     // make the top edge truly parallel to the bottom one
     let dir = (base[1] - base[0]).normalize();
     let top0 = base[0] + Vec3::new(-0.7, 0.7, 0.0) * 1.3;
-    let pts: Vec<Vec3> = [base[0], base[1], top0 + dir * 2.0, top0].iter().map(|p| rot * *p + Vec3::new(5.0, -2.0, 1.0)).collect();
+    let pts: Vec<Vec3> = [base[0], base[1], top0 + dir * 2.0, top0]
+        .iter()
+        .map(|p| rot * *p + Vec3::new(5.0, -2.0, 1.0))
+        .collect();
     let positions: Vec<[f32; 3]> = pts.iter().map(|p| p.to_array()).collect();
     let data = glb(&[Object::new(&positions, &QUAD_IDX)], vec![]);
     let (blocks, stats) = run(&data, &opts());
@@ -225,7 +247,12 @@ fn triangle_is_one_block_with_exact_corners() {
 
 #[test]
 fn general_quad_falls_back_to_two_exact_triangles() {
-    let kite = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [3.0, 2.0, 0.5], [-1.0, 3.0, 0.2]];
+    let kite = [
+        [0.0, 0.0, 0.0],
+        [2.0, 0.0, 0.0],
+        [3.0, 2.0, 0.5],
+        [-1.0, 3.0, 0.2],
+    ];
     let data = glb(&[Object::new(&kite, &QUAD_IDX)], vec![]);
     let (blocks, _) = run(&data, &opts());
     assert_eq!(blocks.len(), 2);
@@ -235,7 +262,13 @@ fn general_quad_falls_back_to_two_exact_triangles() {
 #[test]
 fn merging_can_be_disabled() {
     let data = glb(&[Object::new(&RECT, &QUAD_IDX)], vec![]);
-    let (blocks, _) = run(&data, &Options { merge_angle: 0.0, ..opts() });
+    let (blocks, _) = run(
+        &data,
+        &Options {
+            merge_angle: 0.0,
+            ..opts()
+        },
+    );
     assert_eq!(blocks.len(), 2);
     assert_corners(&blocks, &RECT.map(v));
 }
@@ -243,8 +276,14 @@ fn merging_can_be_disabled() {
 #[test]
 fn cube_from_quads_is_six_blocks() {
     let c = [
-        [0., 0., 0.], [1., 0., 0.], [1., 1., 0.], [0., 1., 0.],
-        [0., 0., 1.], [1., 0., 1.], [1., 1., 1.], [0., 1., 1.],
+        [0., 0., 0.],
+        [1., 0., 0.],
+        [1., 1., 0.],
+        [0., 1., 0.],
+        [0., 0., 1.],
+        [1., 0., 1.],
+        [1., 1., 1.],
+        [0., 1., 1.],
     ];
     // 6 faces, outward winding, 2 triangles each
     #[rustfmt::skip]
@@ -305,7 +344,10 @@ fn node_transforms_are_applied() {
 
 #[test]
 fn mirrored_nodes_still_produce_correct_blocks() {
-    let data = glb(&[Object::new(&RECT, &QUAD_IDX).node(json!({"scale": [-1.0, 1.0, 1.0]}))], vec![]);
+    let data = glb(
+        &[Object::new(&RECT, &QUAD_IDX).node(json!({"scale": [-1.0, 1.0, 1.0]}))],
+        vec![],
+    );
     let expected: Vec<Vec3> = RECT.iter().map(|p| Vec3::new(-p[0], p[1], p[2])).collect();
     let (blocks, _) = run(&data, &opts());
     assert_eq!(blocks.len(), 1);
@@ -315,7 +357,13 @@ fn mirrored_nodes_still_produce_correct_blocks() {
 #[test]
 fn scale_option_scales_the_model() {
     let data = glb(&[Object::new(&RECT, &QUAD_IDX)], vec![]);
-    let (blocks, _) = run(&data, &Options { scale: 2.5, ..opts() });
+    let (blocks, _) = run(
+        &data,
+        &Options {
+            scale: 2.5,
+            ..opts()
+        },
+    );
     let expected: Vec<Vec3> = RECT.iter().map(|p| v(*p) * 2.5).collect();
     assert_corners(&blocks, &expected);
 }
@@ -326,7 +374,10 @@ fn scale_option_scales_the_model() {
 fn default_block_comes_from_options() {
     let data = glb(&[Object::new(&RECT, &QUAD_IDX)], vec![]);
     assert_eq!(run(&data, &opts()).0[0].id, 109);
-    let glass = Options { block: mesh::parse_block("glass").unwrap(), ..opts() };
+    let glass = Options {
+        block: mesh::parse_block("glass").unwrap(),
+        ..opts()
+    };
     assert_eq!(run(&data, &glass).0[0].id, 121);
 }
 
@@ -340,10 +391,14 @@ fn extras_pick_the_block_and_the_most_specific_one_wins() {
     let objects = [
         // node < mesh < material < primitive
         Object::new(&RECT, &QUAD_IDX).node(json!({"extras": {"sw_block": "wood"}})),
-        Object::new(&RECT, &QUAD_IDX).node(json!({"extras": {"sw_block": "wood"}})).mesh_extras(json!({"sw_block": "glass"})),
+        Object::new(&RECT, &QUAD_IDX)
+            .node(json!({"extras": {"sw_block": "wood"}}))
+            .mesh_extras(json!({"sw_block": "glass"})),
         Object::new(&RECT, &QUAD_IDX).material(1),
         Object::new(&RECT, &QUAD_IDX).material(2),
-        Object::new(&RECT, &QUAD_IDX).material(1).primitive_extras(json!({"sw_block": 130})),
+        Object::new(&RECT, &QUAD_IDX)
+            .material(1)
+            .primitive_extras(json!({"sw_block": 130})),
         Object::new(&RECT, &QUAD_IDX).material(0),
     ];
     let (blocks, _) = run(&glb(&objects, materials), &opts());
@@ -386,13 +441,20 @@ fn node_extras_are_inherited_by_children() {
     let (blocks, _) = run(&out, &opts());
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0].id, 130);
-    let expected: Vec<Vec3> = RECT.iter().map(|p| v(*p) + Vec3::new(0.0, 5.0, 0.0)).collect();
+    let expected: Vec<Vec3> = RECT
+        .iter()
+        .map(|p| v(*p) + Vec3::new(0.0, 5.0, 0.0))
+        .collect();
     assert_corners(&blocks, &expected);
 }
 
 #[test]
 fn wireframe_uses_the_chosen_block() {
-    let data = glb(&[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_block": "glass", "sw_mode": "wireframe"}))], vec![]);
+    let data = glb(
+        &[Object::new(&RECT, &QUAD_IDX)
+            .mesh_extras(json!({"sw_block": "glass", "sw_mode": "wireframe"}))],
+        vec![],
+    );
     let (blocks, _) = run(&data, &opts());
     assert_eq!(blocks.len(), 5); // 4 sides + 1 diagonal
     assert!(blocks.iter().all(|b| b.id == 121));
@@ -400,21 +462,37 @@ fn wireframe_uses_the_chosen_block() {
 
 #[test]
 fn bad_block_name_reports_where() {
-    let data = glb(&[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_block": "plastic"}))], vec![]);
-    let err = mesh::generate(&data, None, &opts()).unwrap_err().to_string();
-    assert!(err.contains("mesh #0") && err.contains("plastic") && err.contains("valid blocks"), "{err}");
+    let data = glb(
+        &[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_block": "plastic"}))],
+        vec![],
+    );
+    let err = mesh::generate(&data, None, &opts())
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("mesh #0") && err.contains("plastic") && err.contains("valid blocks"),
+        "{err}"
+    );
 }
 
 #[test]
 fn non_custom_block_is_rejected() {
-    let data = glb(&[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_block": 0}))], vec![]);
-    let err = mesh::generate(&data, None, &opts()).unwrap_err().to_string();
+    let data = glb(
+        &[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_block": 0}))],
+        vec![],
+    );
+    let err = mesh::generate(&data, None, &opts())
+        .unwrap_err()
+        .to_string();
     assert!(err.contains("not a custom-shape block"), "{err}");
 }
 
 #[test]
 fn thickness_and_mode_can_come_from_extras() {
-    let data = glb(&[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_thickness": 0.2}))], vec![]);
+    let data = glb(
+        &[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_thickness": 0.2}))],
+        vec![],
+    );
     let (blocks, _) = run(&data, &opts());
     let v = &blocks[0].settings.as_ref().unwrap().vectors;
     assert!((v[1].z - 0.2).abs() < 1e-6 && (v[3].z - 0.2).abs() < 1e-6);
@@ -424,7 +502,8 @@ fn thickness_and_mode_can_come_from_extras() {
 
 #[test]
 fn material_color_paints_blocks_in_srgb() {
-    let materials = vec![json!({"pbrMetallicRoughness": {"baseColorFactor": [0.8, 0.8, 0.8, 1.0]}})];
+    let materials =
+        vec![json!({"pbrMetallicRoughness": {"baseColorFactor": [0.8, 0.8, 0.8, 1.0]}})];
     let data = glb(&[Object::new(&RECT, &QUAD_IDX).material(0)], materials);
     let (blocks, _) = run(&data, &opts());
     let c = blocks[0].color.unwrap();
@@ -439,7 +518,9 @@ fn no_material_means_unpainted() {
 
 #[test]
 fn extras_color_beats_material_color() {
-    let materials = vec![json!({"pbrMetallicRoughness": {"baseColorFactor": [0.0, 0.0, 1.0, 1.0]}, "extras": {"sw_color": "#ff8000"}})];
+    let materials = vec![
+        json!({"pbrMetallicRoughness": {"baseColorFactor": [0.0, 0.0, 1.0, 1.0]}, "extras": {"sw_color": "#ff8000"}}),
+    ];
     let data = glb(&[Object::new(&RECT, &QUAD_IDX).material(0)], materials);
     let c = run(&data, &opts()).0[0].color.unwrap();
     assert_eq!((c.r, c.g, c.b), (255, 128, 0));
@@ -447,9 +528,17 @@ fn extras_color_beats_material_color() {
 
 #[test]
 fn color_none_paints_nothing() {
-    let materials = vec![json!({"pbrMetallicRoughness": {"baseColorFactor": [1.0, 0.0, 0.0, 1.0]}, "extras": {"sw_color": "#ff8000"}})];
+    let materials = vec![
+        json!({"pbrMetallicRoughness": {"baseColorFactor": [1.0, 0.0, 0.0, 1.0]}, "extras": {"sw_color": "#ff8000"}}),
+    ];
     let data = glb(&[Object::new(&RECT, &QUAD_IDX).material(0)], materials);
-    let (blocks, _) = run(&data, &Options { color: ColorMode::None, ..opts() });
+    let (blocks, _) = run(
+        &data,
+        &Options {
+            color: ColorMode::None,
+            ..opts()
+        },
+    );
     assert!(blocks[0].color.is_none());
 }
 
@@ -474,7 +563,15 @@ fn differently_colored_halves_are_not_merged() {
 fn absurdly_large_models_give_a_clear_error() {
     // 4000 x 2000 units needs 400 x 200 plates, more blocks than a structure holds
     let data = glb(&[Object::new(&RECT, &QUAD_IDX)], vec![]);
-    let err = mesh::generate(&data, None, &Options { scale: 2000.0, ..opts() }).unwrap_err();
+    let err = mesh::generate(
+        &data,
+        None,
+        &Options {
+            scale: 2000.0,
+            ..opts()
+        },
+    )
+    .unwrap_err();
     assert!(err.to_string().contains("65535"), "{err}");
 }
 
@@ -487,8 +584,19 @@ fn degenerate_triangles_are_skipped() {
 
 #[test]
 fn the_structure_survives_saving() {
-    let data = glb(&[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_block": "glass"}))], vec![]);
-    let (s, _) = mesh::generate(&data, None, &Options { mode: Mode::Hollow, ..opts() }).unwrap();
+    let data = glb(
+        &[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_block": "glass"}))],
+        vec![],
+    );
+    let (s, _) = mesh::generate(
+        &data,
+        None,
+        &Options {
+            mode: Mode::Hollow,
+            ..opts()
+        },
+    )
+    .unwrap();
     let path = std::env::temp_dir().join("sw_tools_mesh_roundtrip.structure");
     s.save(&path, &Default::default()).unwrap();
     let back = sw_formats::structure::Structure::load(&path).unwrap();
@@ -510,10 +618,16 @@ fn assert_in_game_limits(blocks: &[Block]) {
     for b in blocks {
         let v = &b.settings.as_ref().unwrap().vectors;
         for c in [&v[0], &v[2]] {
-            assert!(c.x.abs() <= 6.0 && c.y.abs() <= 5.0 && c.z.abs() <= 6.0, "position {c:?} out of range");
+            assert!(
+                c.x.abs() <= 6.0 && c.y.abs() <= 5.0 && c.z.abs() <= 6.0,
+                "position {c:?} out of range"
+            );
         }
         for s in [&v[1], &v[3]] {
-            assert!((0.0..=10.0).contains(&s.x) && s.y == 0.0 && (0.0..=10.0).contains(&s.z), "size {s:?} out of range");
+            assert!(
+                (0.0..=10.0).contains(&s.x) && s.y == 0.0 && (0.0..=10.0).contains(&s.z),
+                "size {s:?} out of range"
+            );
         }
     }
 }
@@ -535,7 +649,11 @@ fn small_faces_stay_inside_the_limits() {
     assert_in_game_limits(&blocks);
     // centered on the face: the origin is the middle of the 2 x 1 rectangle
     assert!(same(
-        Vec3::new(blocks[0].position.x, blocks[0].position.y, blocks[0].position.z),
+        Vec3::new(
+            blocks[0].position.x,
+            blocks[0].position.y,
+            blocks[0].position.z
+        ),
         Vec3::new(1.0, 0.5, 0.0)
     ));
 }
@@ -559,10 +677,16 @@ fn big_faces_are_split_to_fit_and_cover_the_same_area() {
         assert!(blocks.len() > 1, "{w}x{h} should need several blocks");
         assert_in_game_limits(&blocks);
         let area: f32 = blocks.iter().map(face_area).sum();
-        assert!((area - w * h).abs() < 1e-2 * w * h, "{w}x{h}: covered {area}");
+        assert!(
+            (area - w * h).abs() < 1e-2 * w * h,
+            "{w}x{h}: covered {area}"
+        );
         // nothing sticks out of the original rectangle
         for c in blocks.iter().flat_map(front_corners) {
-            assert!(c.x > -1e-3 && c.x < w + 1e-3 && c.y > -1e-3 && c.y < h + 1e-3 && c.z.abs() < 1e-3, "{c}");
+            assert!(
+                c.x > -1e-3 && c.x < w + 1e-3 && c.y > -1e-3 && c.y < h + 1e-3 && c.z.abs() < 1e-3,
+                "{c}"
+            );
         }
     }
 }
@@ -571,20 +695,34 @@ fn big_faces_are_split_to_fit_and_cover_the_same_area() {
 fn big_triangles_and_skewed_quads_are_split_correctly() {
     // a 30 x 24 right triangle, and a very skewed parallelogram
     let tri = [[0.0, 0.0, 0.0], [30.0, 0.0, 0.0], [0.0, 24.0, 0.0]];
-    let para = [[0.0, 0.0, 0.0], [8.0, 0.0, 0.0], [38.0, 9.0, 0.0], [30.0, 9.0, 0.0]];
-    for (pts, idx, area) in [(&tri[..], &[0u16, 1, 2][..], 360.0f32), (&para[..], &QUAD_IDX[..], 72.0)] {
+    let para = [
+        [0.0, 0.0, 0.0],
+        [8.0, 0.0, 0.0],
+        [38.0, 9.0, 0.0],
+        [30.0, 9.0, 0.0],
+    ];
+    for (pts, idx, area) in [
+        (&tri[..], &[0u16, 1, 2][..], 360.0f32),
+        (&para[..], &QUAD_IDX[..], 72.0),
+    ] {
         let data = glb(&[Object::new(pts, idx)], vec![]);
         let (blocks, _) = run(&data, &opts());
         assert_in_game_limits(&blocks);
         let total: f32 = blocks.iter().map(face_area).sum();
-        assert!((total - area).abs() < 1e-2 * area, "covered {total}, expected {area}");
+        assert!(
+            (total - area).abs() < 1e-2 * area,
+            "covered {total}, expected {area}"
+        );
     }
 }
 
 #[test]
 fn split_faces_in_3d_keep_their_corners_on_the_original_plane() {
     let rot = Quat::from_euler(EulerRot::XYZ, 0.7, 0.2, -0.5);
-    let pts: Vec<Vec3> = rect(23.0, 14.0).iter().map(|p| rot * v(*p) + Vec3::new(3.0, 4.0, 5.0)).collect();
+    let pts: Vec<Vec3> = rect(23.0, 14.0)
+        .iter()
+        .map(|p| rot * v(*p) + Vec3::new(3.0, 4.0, 5.0))
+        .collect();
     let positions: Vec<[f32; 3]> = pts.iter().map(|p| p.to_array()).collect();
     let data = glb(&[Object::new(&positions, &QUAD_IDX)], vec![]);
     let (blocks, _) = run(&data, &opts());
@@ -600,14 +738,29 @@ fn split_faces_in_3d_keep_their_corners_on_the_original_plane() {
 #[test]
 fn long_wireframe_edges_are_chained() {
     let line = [[0.0, 0.0, 0.0], [25.0, 0.0, 0.0], [25.0, 0.1, 0.0]];
-    let data = glb(&[Object::new(&line, &[0, 1, 2]).mesh_extras(json!({"sw_mode": "wireframe"}))], vec![]);
+    let data = glb(
+        &[Object::new(&line, &[0, 1, 2]).mesh_extras(json!({"sw_mode": "wireframe"}))],
+        vec![],
+    );
     let (blocks, _) = run(&data, &opts());
     assert_in_game_limits(&blocks);
     // 25 long -> 3 bars of 8.33; the other two edges are 0.1 and ~25 long
-    let long_bars = blocks.iter().filter(|b| (b.settings.as_ref().unwrap().vectors[0].y * 2.0) > 8.0).count();
+    let long_bars = blocks
+        .iter()
+        .filter(|b| (b.settings.as_ref().unwrap().vectors[0].y * 2.0) > 8.0)
+        .count();
     assert_eq!(long_bars, 6, "two 25-long edges, 3 bars each");
     // the bars of the first edge tile it without gaps
-    let mut mids: Vec<f32> = blocks.iter().filter(|b| b.position.y.abs() < 1e-3 && b.position.x < 25.0 - 1e-3 && (b.settings.as_ref().unwrap().vectors[0].y * 2.0) > 8.0 && b.position.z.abs() < 1e-3).map(|b| b.position.x).collect();
+    let mut mids: Vec<f32> = blocks
+        .iter()
+        .filter(|b| {
+            b.position.y.abs() < 1e-3
+                && b.position.x < 25.0 - 1e-3
+                && (b.settings.as_ref().unwrap().vectors[0].y * 2.0) > 8.0
+                && b.position.z.abs() < 1e-3
+        })
+        .map(|b| b.position.x)
+        .collect();
     mids.sort_by(f32::total_cmp);
     assert_eq!(mids.len(), 3);
     for (m, e) in mids.iter().zip([25.0 / 6.0, 25.0 / 2.0, 25.0 * 5.0 / 6.0]) {
@@ -618,14 +771,36 @@ fn long_wireframe_edges_are_chained() {
 #[test]
 fn thickness_is_limited_to_what_a_plate_can_be() {
     let data = glb(&[Object::new(&RECT, &QUAD_IDX)], vec![]);
-    let err = mesh::generate(&data, None, &Options { thickness: 10.5, ..opts() }).unwrap_err();
+    let err = mesh::generate(
+        &data,
+        None,
+        &Options {
+            thickness: 10.5,
+            ..opts()
+        },
+    )
+    .unwrap_err();
     assert!(err.to_string().contains("thickness"), "{err}");
-    let (blocks, _) = run(&data, &Options { thickness: 10.0, ..opts() });
+    let (blocks, _) = run(
+        &data,
+        &Options {
+            thickness: 10.0,
+            ..opts()
+        },
+    );
     assert_in_game_limits(&blocks);
 
-    let data = glb(&[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_thickness": 11}))], vec![]);
-    let err = mesh::generate(&data, None, &opts()).unwrap_err().to_string();
-    assert!(err.contains("mesh #0") && err.contains("thickness"), "{err}");
+    let data = glb(
+        &[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_thickness": 11}))],
+        vec![],
+    );
+    let err = mesh::generate(&data, None, &opts())
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("mesh #0") && err.contains("thickness"),
+        "{err}"
+    );
 }
 
 // ------------------------------------------------------- coordinate conversion
@@ -633,7 +808,12 @@ fn thickness_is_limited_to_what_a_plate_can_be() {
 /// Where the block's body is, relative to its front face, along world z.
 fn back_z(b: &Block) -> f32 {
     let v = &b.settings.as_ref().unwrap().vectors;
-    let rot = Quat::from_euler(EulerRot::YXZ, b.rotation.y.to_radians(), b.rotation.x.to_radians(), b.rotation.z.to_radians());
+    let rot = Quat::from_euler(
+        EulerRot::YXZ,
+        b.rotation.y.to_radians(),
+        b.rotation.x.to_radians(),
+        b.rotation.z.to_radians(),
+    );
     let pos = Vec3::new(b.position.x, b.position.y, b.position.z);
     (pos + rot * Vec3::new(v[2].x, v[2].y, v[2].z - v[3].z / 2.0)).z
 }
@@ -649,11 +829,25 @@ fn default_conversion_mirrors_x() {
 
 #[test]
 fn z_mirror_negates_z() {
-    let tilted = [[0.0, 0.0, 0.0], [2.0, 0.0, 1.0], [2.0, 1.0, 1.0], [0.0, 1.0, 0.0]];
+    let tilted = [
+        [0.0, 0.0, 0.0],
+        [2.0, 0.0, 1.0],
+        [2.0, 1.0, 1.0],
+        [0.0, 1.0, 0.0],
+    ];
     let data = glb(&[Object::new(&tilted, &QUAD_IDX)], vec![]);
-    let (blocks, _) = run(&data, &Options { mirror: Mirror::Z, ..Default::default() });
+    let (blocks, _) = run(
+        &data,
+        &Options {
+            mirror: Mirror::Z,
+            ..Default::default()
+        },
+    );
     assert_eq!(blocks.len(), 1);
-    let expected: Vec<Vec3> = tilted.iter().map(|p| Vec3::new(p[0], p[1], -p[2])).collect();
+    let expected: Vec<Vec3> = tilted
+        .iter()
+        .map(|p| Vec3::new(p[0], p[1], -p[2]))
+        .collect();
     assert_corners(&blocks, &expected);
 }
 
@@ -663,18 +857,28 @@ fn thickness_stays_behind_the_face_whatever_the_mirror() {
     // plate should extend towards -z, in every coordinate system
     let data = glb(&[Object::new(&RECT, &QUAD_IDX)], vec![]);
     for mirror in [Mirror::None, Mirror::X, Mirror::Z] {
-        let o = Options { mirror, thickness: 0.2, ..Default::default() };
+        let o = Options {
+            mirror,
+            thickness: 0.2,
+            ..Default::default()
+        };
         let (blocks, _) = run(&data, &o);
         let outward = if mirror == Mirror::Z { -1.0 } else { 1.0 }; // z mirror flips the face to -z
         let body = back_z(&blocks[0]);
-        assert!((body - (-0.2 * outward)).abs() < 1e-4, "{mirror:?}: back face at z = {body}");
+        assert!(
+            (body - (-0.2 * outward)).abs() < 1e-4,
+            "{mirror:?}: back face at z = {body}"
+        );
     }
 }
 
 #[test]
 fn mirror_and_mirrored_node_cancel_out() {
     // a node with scale -1 on x, under the default x mirror, lands where the raw model is
-    let data = glb(&[Object::new(&RECT, &QUAD_IDX).node(json!({"scale": [-1.0, 1.0, 1.0]}))], vec![]);
+    let data = glb(
+        &[Object::new(&RECT, &QUAD_IDX).node(json!({"scale": [-1.0, 1.0, 1.0]}))],
+        vec![],
+    );
     let (blocks, _) = run(&data, &Options::default());
     assert_eq!(blocks.len(), 1);
     assert_corners(&blocks, &RECT.map(v));

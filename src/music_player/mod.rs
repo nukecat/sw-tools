@@ -70,9 +70,17 @@ const MAX_SOURCE_LEN: usize = 0x7FFF;
 /// after another when the song restarts, and this keeps each one reset before its turn comes.
 const MIN_PART_TICKS: u64 = 8;
 /// Display microcontroller position
-const DISPLAY_MC_POS: Vec3 = Vec3 { x: 0.0, y: 0.125, z: 0.0 };
+const DISPLAY_MC_POS: Vec3 = Vec3 {
+    x: 0.0,
+    y: 0.125,
+    z: 0.0,
+};
 /// Position of microcontrollers that store and play song
-const MICROCONTROLLER_POS: Vec3 = Vec3 { x: 0.0, y: -0.125, z: 0.0 };
+const MICROCONTROLLER_POS: Vec3 = Vec3 {
+    x: 0.0,
+    y: -0.125,
+    z: 0.0,
+};
 
 #[derive(Debug)]
 pub enum MusicPlayerError {
@@ -225,7 +233,11 @@ pub fn playback(midi_raw: &[u8], options: &Options) -> Result<Playback> {
         events: song
             .events
             .iter()
-            .map(|e| ToneEvent { ms: on_tick(e.ms), tone: e.key, on: e.on })
+            .map(|e| ToneEvent {
+                ms: on_tick(e.ms),
+                tone: e.key,
+                on: e.on,
+            })
             .collect(),
         total_ms: on_tick(song.total_ms),
     })
@@ -251,7 +263,11 @@ impl TempoMap {
     /// `changes` is `(tick, microseconds per beat)`. MIDI's default is 120 BPM.
     fn new(ppq: u64, mut changes: Vec<(u64, u32)>) -> TempoMap {
         changes.sort_by_key(|c| c.0); // stable: for equal ticks the last one wins
-        let mut points = vec![TempoPoint { tick: 0, micros_per_beat: 500_000, at_micros: 0 }];
+        let mut points = vec![TempoPoint {
+            tick: 0,
+            micros_per_beat: 500_000,
+            at_micros: 0,
+        }];
         for (tick, tempo) in changes {
             let tempo = u64::from(tempo).max(1);
             let last = points.last_mut().unwrap();
@@ -261,7 +277,11 @@ impl TempoMap {
             }
             let at_micros = last.at_micros
                 + u128::from(tick - last.tick) * u128::from(last.micros_per_beat) / u128::from(ppq);
-            points.push(TempoPoint { tick, micros_per_beat: tempo, at_micros });
+            points.push(TempoPoint {
+                tick,
+                micros_per_beat: tempo,
+                at_micros,
+            });
         }
         TempoMap { ppq, points }
     }
@@ -351,7 +371,11 @@ fn parse_midi(midi_raw: &[u8], options: &Options) -> Result<Song> {
         while j < notes.len() && notes[j].0 == tick {
             let (_, key, on) = notes[j];
             let count = &mut holders[key as usize];
-            *count = if on { *count + 1 } else { count.saturating_sub(1) };
+            *count = if on {
+                *count + 1
+            } else {
+                count.saturating_sub(1)
+            };
             struck[key as usize] |= on;
             j += 1;
         }
@@ -395,13 +419,21 @@ fn parse_midi(midi_raw: &[u8], options: &Options) -> Result<Song> {
 
     let events: Vec<KeyEvent> = changes
         .iter()
-        .map(|&(ms, key, on)| KeyEvent { ms, key: keys.binary_search(&key).unwrap(), on })
+        .map(|&(ms, key, on)| KeyEvent {
+            ms,
+            key: keys.binary_search(&key).unwrap(),
+            on,
+        })
         .collect();
 
     let last_ms = changes.last().map_or(0, |c| c.0);
     let total_ms = tempo_map.millis(end_tick).max(last_ms);
 
-    Ok(Song { keys, events, total_ms })
+    Ok(Song {
+        keys,
+        events,
+        total_ms,
+    })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -424,7 +456,11 @@ fn encode_events(song: &Song) -> Vec<u8> {
     }
 
     for event in &song.events {
-        push(&mut bytes, event.ms - now, ((event.key as u8) << 1) | event.on as u8);
+        push(
+            &mut bytes,
+            event.ms - now,
+            ((event.key as u8) << 1) | event.on as u8,
+        );
         now = event.ms;
     }
     push(&mut bytes, song.total_ms - now, WAIT);
@@ -440,7 +476,13 @@ fn sanitize_title(title: &str) -> String {
     title
         .chars()
         .take(40)
-        .map(|c| if c.is_ascii_alphanumeric() || " -_.,()+&'".contains(c) { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || " -_.,()+&'".contains(c) {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -453,7 +495,10 @@ fn preprocess(template: &str, flags: &[&str]) -> String {
     let mut out = String::new();
     for line in template.lines() {
         let trimmed = line.trim();
-        if let Some(name) = trimmed.strip_prefix("# @IF ").and_then(|r| r.strip_suffix('@')) {
+        if let Some(name) = trimmed
+            .strip_prefix("# @IF ")
+            .and_then(|r| r.strip_suffix('@'))
+        {
             let parent = on(&stack);
             stack.push((parent, flags.contains(&name), false));
         } else if trimmed == "# @ELSE@" {
@@ -596,7 +641,11 @@ impl<'a> Timeline<'a> {
             events: song
                 .events
                 .iter()
-                .map(|e| TickEvent { tick: on_tick(e.ms) / TICK_MS, key: e.key, on: e.on })
+                .map(|e| TickEvent {
+                    tick: on_tick(e.ms) / TICK_MS,
+                    key: e.key,
+                    on: e.on,
+                })
                 .collect(),
             ticks: on_tick(song.total_ms) / TICK_MS,
         }
@@ -614,7 +663,11 @@ impl<'a> Timeline<'a> {
         for e in self.events.iter().filter(|e| e.tick <= start) {
             down[e.key] = e.on;
         }
-        let inside = || self.events.iter().filter(|e| e.tick > start && e.tick <= end);
+        let inside = || {
+            self.events
+                .iter()
+                .filter(|e| e.tick > start && e.tick <= end)
+        };
 
         let mut ids: Vec<usize> = (0..down.len()).filter(|&k| down[k]).collect();
         ids.extend(inside().map(|e| e.key));
@@ -624,11 +677,17 @@ impl<'a> Timeline<'a> {
 
         let mut events: Vec<KeyEvent> = (0..down.len())
             .filter(|&k| down[k])
-            .map(|k| KeyEvent { ms: local_ms(start + 1), key: local(k), on: true })
+            .map(|k| KeyEvent {
+                ms: local_ms(start + 1),
+                key: local(k),
+                on: true,
+            })
             .collect();
-        events.extend(
-            inside().map(|e| KeyEvent { ms: local_ms(e.tick), key: local(e.key), on: e.on }),
-        );
+        events.extend(inside().map(|e| KeyEvent {
+            ms: local_ms(e.tick),
+            key: local(e.key),
+            on: e.on,
+        }));
 
         Part {
             song: Song {
@@ -651,7 +710,11 @@ struct Part {
 
 impl Part {
     fn link(&self, has_link: bool, restarts: bool) -> Link {
-        Link { ids: self.ids.clone(), has_link, restarts }
+        Link {
+            ids: self.ids.clone(),
+            has_link,
+            restarts,
+        }
     }
 }
 
@@ -674,7 +737,12 @@ fn plan(song: &Song, options: &Options) -> Result<Plan> {
     let size = |start: u64, end: u64| -> Result<usize> {
         let part = timeline.part(start, end);
         let link = part.link(true, true);
-        Ok(expanded_len(&build_program(&part.song, song.total_ms, options, Some(&link))?))
+        Ok(expanded_len(&build_program(
+            &part.song,
+            song.total_ms,
+            options,
+            Some(&link),
+        )?))
     };
 
     let mut parts = Vec::new();
@@ -788,7 +856,11 @@ impl Layout {
 
     /// The block a player's output for `key` is wired to.
     fn target(&self, key: usize) -> i32 {
-        if self.gates() { self.gate(key) } else { self.tone(key) }
+        if self.gates() {
+            self.gate(key)
+        } else {
+            self.tone(key)
+        }
     }
 
     fn len(&self) -> usize {
@@ -807,7 +879,11 @@ fn build_structure(song: &Song, options: &Options) -> Result<Structure> {
         // The parts add up to whole ticks, and so does the time the song takes to start over.
         Plan::Chain(ranges) => (ranges.len(), timeline.ticks * TICK_MS),
     };
-    let layout = Layout { players: count, keys, display: options.display };
+    let layout = Layout {
+        players: count,
+        keys,
+        display: options.display,
+    };
 
     let mut blocks = Vec::with_capacity(layout.len());
 
@@ -890,26 +966,36 @@ fn build_structure(song: &Song, options: &Options) -> Result<Structure> {
     blocks.extend(song.keys.iter().map(|&key| tone_generator(key)));
     debug_assert_eq!(blocks.len(), layout.len());
 
-    Ok(Structure { roots: vec![Root::default()], blocks, ..Default::default() })
+    Ok(Structure {
+        roots: vec![Root::default()],
+        blocks,
+        ..Default::default()
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use midly::num::{u15, u24, u28, u4, u7};
+    use midly::num::{u4, u7, u15, u24, u28};
     use midly::{Format, Header, Track, TrackEvent};
 
     fn note(channel: u8, key: u8, vel: u8) -> TrackEventKind<'static> {
         TrackEventKind::Midi {
             channel: u4::new(channel),
-            message: MidiMessage::NoteOn { key: u7::new(key), vel: u7::new(vel) },
+            message: MidiMessage::NoteOn {
+                key: u7::new(key),
+                vel: u7::new(vel),
+            },
         }
     }
 
     fn off(channel: u8, key: u8) -> TrackEventKind<'static> {
         TrackEventKind::Midi {
             channel: u4::new(channel),
-            message: MidiMessage::NoteOff { key: u7::new(key), vel: u7::new(0) },
+            message: MidiMessage::NoteOff {
+                key: u7::new(key),
+                vel: u7::new(0),
+            },
         }
     }
 
@@ -976,7 +1062,12 @@ mod tests {
         assert_eq!(song.keys, vec![60, 62]);
         assert_eq!(
             song.events,
-            vec![ev(0, 0, true), ev(500, 0, false), ev(500, 1, true), ev(750, 1, false)]
+            vec![
+                ev(0, 0, true),
+                ev(500, 0, false),
+                ev(500, 1, true),
+                ev(750, 1, false)
+            ]
         );
         assert_eq!(song.total_ms, 750);
     }
@@ -996,7 +1087,15 @@ mod tests {
         assert!((pb.frequencies[1] - 440.0).abs() < 0.01);
         let evs: Vec<_> = pb.events.iter().map(|e| (e.ms, e.tone, e.on)).collect();
         // 0 -> 20 (first tick), 500 stays, 510 -> 520, 1010 -> 1020
-        assert_eq!(evs, vec![(20, 0, true), (500, 0, false), (520, 1, true), (1020, 1, false)]);
+        assert_eq!(
+            evs,
+            vec![
+                (20, 0, true),
+                (500, 0, false),
+                (520, 1, true),
+                (1020, 1, false)
+            ]
+        );
         assert!(pb.events.iter().all(|e| e.ms % TICK_MS == 0));
         assert_eq!(pb.total_ms % TICK_MS, 0);
         assert!(pb.total_ms >= pb.events.last().unwrap().ms);
@@ -1030,25 +1129,43 @@ mod tests {
         // and it only comes up when the *last* holder lets go at 750.
         assert_eq!(
             song.events,
-            vec![ev(0, 0, true), ev(225, 0, false), ev(250, 0, true), ev(750, 0, false)]
+            vec![
+                ev(0, 0, true),
+                ev(225, 0, false),
+                ev(250, 0, true),
+                ev(750, 0, false)
+            ]
         );
     }
 
     #[test]
     fn drums_velocity_and_pitch_range() {
         let raw = midi(vec![vec![
-            (0, note(9, 40, 100)),   // drums
-            (0, note(0, 60, 100)),   // fine
-            (0, note(0, 62, 3)),     // too quiet
-            (0, note(0, 10, 100)),   // below the range
-            (480, note(0, 60, 0)),   // note-on with velocity 0 is a note-off
+            (0, note(9, 40, 100)), // drums
+            (0, note(0, 60, 100)), // fine
+            (0, note(0, 62, 3)),   // too quiet
+            (0, note(0, 10, 100)), // below the range
+            (480, note(0, 60, 0)), // note-on with velocity 0 is a note-off
         ]]);
-        let song = parse_midi(&raw, &Options { min_velocity: 10, ..Options::default() }).unwrap();
+        let song = parse_midi(
+            &raw,
+            &Options {
+                min_velocity: 10,
+                ..Options::default()
+            },
+        )
+        .unwrap();
         assert_eq!(song.keys, vec![60]);
         assert_eq!(song.events, vec![ev(0, 0, true), ev(500, 0, false)]);
 
-        let with_drums = Options { include_drums: true, ..Options::default() };
-        assert_eq!(parse_midi(&raw, &with_drums).unwrap().keys, vec![40, 60, 62]);
+        let with_drums = Options {
+            include_drums: true,
+            ..Options::default()
+        };
+        assert_eq!(
+            parse_midi(&raw, &with_drums).unwrap().keys,
+            vec![40, 60, 62]
+        );
     }
 
     #[test]
@@ -1063,7 +1180,12 @@ mod tests {
         let song = parse_midi(&raw, &Options::default()).unwrap();
         assert_eq!(
             song.events,
-            vec![ev(0, 0, true), ev(475, 0, false), ev(500, 0, true), ev(1000, 0, false)]
+            vec![
+                ev(0, 0, true),
+                ev(475, 0, false),
+                ev(500, 0, true),
+                ev(1000, 0, false)
+            ]
         );
     }
 
@@ -1085,7 +1207,14 @@ mod tests {
             (480, note(0, 60, 2)), // ignored, not an off
             (960, off(0, 60)),
         ]]);
-        let song = parse_midi(&raw, &Options { min_velocity: 10, ..Options::default() }).unwrap();
+        let song = parse_midi(
+            &raw,
+            &Options {
+                min_velocity: 10,
+                ..Options::default()
+            },
+        )
+        .unwrap();
         assert_eq!(song.events, vec![ev(0, 0, true), ev(1000, 0, false)]);
     }
 
@@ -1112,7 +1241,10 @@ mod tests {
             }
         }
         assert_eq!(seen, song.events);
-        assert_eq!(now, 300_000, "the table must end exactly at the end of the song");
+        assert_eq!(
+            now, 300_000,
+            "the table must end exactly at the end of the song"
+        );
         assert!(decoded.iter().all(|(delay, _)| *delay <= MAX_DELAY_MS));
         assert_eq!(decoded.last().unwrap().1, None);
     }
@@ -1132,22 +1264,39 @@ mod tests {
             (480, off(0, 69)),
             (480, off(0, 60)),
         ]]);
-        let options = Options { repeat: true, title: "Test \"song\"".into(), ..Options::default() };
+        let options = Options {
+            repeat: true,
+            title: "Test \"song\"".into(),
+            ..Options::default()
+        };
         let structure = generate(&raw, &options).unwrap();
-        let reread = Structure::from_bytes(&structure.to_bytes(&Default::default()).unwrap()).unwrap();
+        let reread =
+            Structure::from_bytes(&structure.to_bytes(&Default::default()).unwrap()).unwrap();
 
         // switch, player, screen, an OR gate and a tone generator per key (lowest first)
         assert_eq!(reread.blocks.len(), 7);
         assert_eq!(reread.blocks[0].id, SWITCH);
-        assert_eq!(reread.blocks[0].wires, vec![1, 2], "the player and the screen");
+        assert_eq!(
+            reread.blocks[0].wires,
+            vec![1, 2],
+            "the player and the screen"
+        );
         assert_eq!(reread.blocks[1].id, MICROCONTROLLER);
-        assert_eq!(reread.blocks[1].wires, vec![3, 4], "the player drives the OR gates");
+        assert_eq!(
+            reread.blocks[1].wires,
+            vec![3, 4],
+            "the player drives the OR gates"
+        );
         assert_eq!(reread.blocks[2].id, MICROCONTROLLER);
         assert_eq!(reread.blocks[2].wires, Vec::<i32>::new());
         for (key, freq) in [261.6256, 440.0].into_iter().enumerate() {
             let gate = &reread.blocks[3 + key];
             assert_eq!(gate.id, OR_GATE);
-            assert_eq!(gate.wires, vec![5 + key as i32, 2], "tone generator and screen");
+            assert_eq!(
+                gate.wires,
+                vec![5 + key as i32, 2],
+                "tone generator and screen"
+            );
             let tone = &reread.blocks[5 + key];
             assert_eq!(tone.id, TONE_GENERATOR);
             let values = &tone.settings.as_ref().unwrap().values;
@@ -1155,7 +1304,11 @@ mod tests {
         }
         // The screen's input A is the switch and key `n` is input `n + 1`.
         assert_eq!(inputs_of(&reread, 2), vec![0, 3, 4]);
-        assert_eq!(inputs_of(&reread, 1), vec![0], "the player only has the switch");
+        assert_eq!(
+            inputs_of(&reread, 1),
+            vec![0],
+            "the player only has the switch"
+        );
 
         let player = program(&reread.blocks[1]);
         let source = player.source();
@@ -1163,9 +1316,19 @@ mod tests {
         assert!(source.contains("keys = 2\n"));
         assert!(source.contains("total_ms = 500\n"));
         assert!(source.contains("repeat = 1\n"));
-        assert!(!source.contains("draw_keys"), "the player does not draw anything");
-        assert_eq!(player.data_blobs.len(), 1, "the song must be stored as one raw blob");
-        assert_eq!(player.data_blobs[0], encode_events(&parse_midi(&raw, &options).unwrap()));
+        assert!(
+            !source.contains("draw_keys"),
+            "the player does not draw anything"
+        );
+        assert_eq!(
+            player.data_blobs.len(),
+            1,
+            "the song must be stored as one raw blob"
+        );
+        assert_eq!(
+            player.data_blobs[0],
+            encode_events(&parse_midi(&raw, &options).unwrap())
+        );
 
         let screen = program(&reread.blocks[2]);
         let source = screen.source();
@@ -1174,7 +1337,11 @@ mod tests {
         assert!(source.contains("total_ms = 500\n"));
         assert!(source.contains("repeat = 1\n"));
         assert!(source.contains("\"Test _song_\""));
-        assert_eq!(screen.data_blobs[0], vec![60, 69], "the pitch behind each input");
+        assert_eq!(
+            screen.data_blobs[0],
+            vec![60, 69],
+            "the pitch behind each input"
+        );
         assert_eq!(reread.blocks[2].name.as_deref(), Some("Music display"));
     }
 
@@ -1182,7 +1349,14 @@ mod tests {
     fn display_can_be_left_out() {
         let raw = midi(vec![vec![(0, note(0, 60, 100)), (480, off(0, 60))]]);
         let with = generate(&raw, &Options::default()).unwrap();
-        let without = generate(&raw, &Options { display: false, ..Options::default() }).unwrap();
+        let without = generate(
+            &raw,
+            &Options {
+                display: false,
+                ..Options::default()
+            },
+        )
+        .unwrap();
         let count = |s: &Structure, id| s.blocks.iter().filter(|b| b.id == id).count();
 
         assert_eq!(count(&with, MICROCONTROLLER), 2);
@@ -1196,7 +1370,11 @@ mod tests {
         assert_eq!(without.blocks[0].wires, vec![1]);
         assert_eq!(without.blocks[1].wires, vec![2]);
         assert_eq!(without.blocks[2].id, TONE_GENERATOR);
-        assert!(program(&without.blocks[1]).source().contains("out(k + 1, held[k])"));
+        assert!(
+            program(&without.blocks[1])
+                .source()
+                .contains("out(k + 1, held[k])")
+        );
     }
 
     /// `notes` short notes cycling over `pitches` keys, with one note held through the whole song.
@@ -1219,8 +1397,16 @@ mod tests {
     }
 
     fn number_after(source: &str, name: &str) -> u64 {
-        let line = source.lines().find(|l| l.starts_with(&format!("{name} = "))).unwrap();
-        line[name.len() + 3..].split_whitespace().next().unwrap().parse().unwrap()
+        let line = source
+            .lines()
+            .find(|l| l.starts_with(&format!("{name} = ")))
+            .unwrap();
+        line[name.len() + 3..]
+            .split_whitespace()
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap()
     }
 
     #[test]
@@ -1240,7 +1426,12 @@ mod tests {
 
             let d = display as usize;
             // the screen is a microcontroller too, but not one of the chain
-            let count = structure.blocks.iter().filter(|b| b.id == MICROCONTROLLER).count() - d;
+            let count = structure
+                .blocks
+                .iter()
+                .filter(|b| b.id == MICROCONTROLLER)
+                .count()
+                - d;
             let keys = song.keys.len();
             assert!(count > 2, "expected a long chain, got {count}");
             assert_eq!(structure.blocks.len(), 1 + count + d + 2 * keys);
@@ -1288,7 +1479,14 @@ mod tests {
                 let pitches: Vec<u8> = program(mc).data_blobs[0].clone();
                 assert_eq!(pitches, song.keys);
             } else {
-                assert_eq!(structure.blocks.iter().filter(|b| b.id == MICROCONTROLLER).count(), count);
+                assert_eq!(
+                    structure
+                        .blocks
+                        .iter()
+                        .filter(|b| b.id == MICROCONTROLLER)
+                        .count(),
+                    count
+                );
             }
 
             // Replay every microcontroller the way the script does and OR the outputs together.
@@ -1301,7 +1499,10 @@ mod tests {
                 let source = program.source();
                 assert!(source.len() <= 10_000, "part {p}: {}", source.len());
                 assert!(!source.contains('@'), "unfilled placeholder");
-                assert_eq!(mc.name.as_deref(), Some(format!("Music player {}/{count}", p + 1).as_str()));
+                assert_eq!(
+                    mc.name.as_deref(),
+                    Some(format!("Music player {}/{count}", p + 1).as_str())
+                );
 
                 let last = p + 1 == count;
                 assert_eq!(number_after(&source, "has_link"), (!last || repeat) as u64);
@@ -1350,7 +1551,11 @@ mod tests {
                     }
                 }
             }
-            assert_eq!(next_start, timeline.ticks * TICK_MS, "the parts must cover the song");
+            assert_eq!(
+                next_start,
+                timeline.ticks * TICK_MS,
+                "the parts must cover the song"
+            );
 
             // What the OR gates see on each tick is what the song asks for.
             let mut want = vec![false; keys];
@@ -1370,22 +1575,36 @@ mod tests {
         let raw = long_song(50, 10);
         let structure = generate(&raw, &Options::default()).unwrap();
         // one player and the screen
-        assert_eq!(structure.blocks.iter().filter(|b| b.id == MICROCONTROLLER).count(), 2);
+        assert_eq!(
+            structure
+                .blocks
+                .iter()
+                .filter(|b| b.id == MICROCONTROLLER)
+                .count(),
+            2
+        );
         // the OR gates in front of the tone generators are what the screen listens to
-        assert_eq!(structure.blocks.iter().filter(|b| b.id == OR_GATE).count(), 10 + 1);
+        assert_eq!(
+            structure.blocks.iter().filter(|b| b.id == OR_GATE).count(),
+            10 + 1
+        );
         assert_eq!(structure.blocks[1].name.as_deref(), Some("Music player"));
     }
 
     #[test]
     fn an_impossible_limit_is_an_error() {
         let raw = long_song(6000, 1);
-        let options = Options { max_source_len: 1000, ..Options::default() };
+        let options = Options {
+            max_source_len: 1000,
+            ..Options::default()
+        };
         assert!(generate(&raw, &options).is_err());
     }
 
     #[test]
     fn preprocessing_handles_nesting() {
-        let template = "a\n# @IF x@\nb\n# @IF y@\nc\n# @ELSE@\nd\n# @END@\n# @ELSE@\ne\n# @END@\nf\n";
+        let template =
+            "a\n# @IF x@\nb\n# @IF y@\nc\n# @ELSE@\nd\n# @END@\n# @ELSE@\ne\n# @END@\nf\n";
         assert_eq!(preprocess(template, &["x", "y"]), "a\nb\nc\nf\n");
         assert_eq!(preprocess(template, &["x"]), "a\nb\nd\nf\n");
         assert_eq!(preprocess(template, &["y"]), "a\ne\nf\n");

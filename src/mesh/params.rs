@@ -25,7 +25,7 @@ use clap::ValueEnum;
 use serde_json::Value;
 use sw_formats::catalog::BlockCatalog;
 
-use super::{color, MeshError, Mode};
+use super::{MeshError, Mode, color};
 
 /// Looks up a custom-shape block by ID, by catalog name (`Custom block (glass)`), by
 /// internal name (`CustomBlockGlass`) or by short name (`glass`).
@@ -38,7 +38,10 @@ pub fn parse_block(s: &str) -> Result<i32, String> {
     }
 
     let found = catalog.iter().filter(|b| b.custom_shape).find(|b| {
-        let short = b.internal_name.strip_prefix("CustomBlock").unwrap_or(&b.internal_name);
+        let short = b
+            .internal_name
+            .strip_prefix("CustomBlock")
+            .unwrap_or(&b.internal_name);
         b.name.eq_ignore_ascii_case(s)
             || b.internal_name.eq_ignore_ascii_case(s)
             || short.eq_ignore_ascii_case(s)
@@ -67,7 +70,10 @@ fn valid_blocks() -> String {
         .iter()
         .filter(|b| b.custom_shape)
         .map(|b| {
-            let short = b.internal_name.strip_prefix("CustomBlock").unwrap_or(&b.internal_name);
+            let short = b
+                .internal_name
+                .strip_prefix("CustomBlock")
+                .unwrap_or(&b.internal_name);
             format!("{} = {}", b.id, short.to_ascii_lowercase())
         })
         .collect();
@@ -129,13 +135,20 @@ impl Overrides {
     /// ignored (other tools put their own data there).
     pub fn from_extras(extras: &gltf::json::Extras, who: &str) -> Result<Overrides, MeshError> {
         let none = Overrides::default();
-        let Some(raw) = extras.as_ref() else { return Ok(none) };
-        let Ok(value) = serde_json::from_str::<Value>(raw.get()) else { return Ok(none) };
-        let Some(obj) = value.as_object() else { return Ok(none) };
+        let Some(raw) = extras.as_ref() else {
+            return Ok(none);
+        };
+        let Ok(value) = serde_json::from_str::<Value>(raw.get()) else {
+            return Ok(none);
+        };
+        let Some(obj) = value.as_object() else {
+            return Ok(none);
+        };
 
         let nested = obj.get("sw").and_then(Value::as_object);
         let get = |key: &str| {
-            obj.get(&format!("sw_{key}")).or_else(|| nested.and_then(|n| n.get(key)))
+            obj.get(&format!("sw_{key}"))
+                .or_else(|| nested.and_then(|n| n.get(key)))
         };
         let fail = |key: &str, msg: String| MeshError::Param(format!("{who}: {key}: {msg}"));
 
@@ -163,15 +176,20 @@ impl Overrides {
                 _ => {
                     return Err(fail(
                         "thickness",
-                        format!("expected a number above 0 and at most {}", super::block::MAX_SIZE),
-                    ))
+                        format!(
+                            "expected a number above 0 and at most {}",
+                            super::block::MAX_SIZE
+                        ),
+                    ));
                 }
             }
         }
 
         if let Some(v) = get("mode") {
             let mode = v.as_str().and_then(|s| Mode::from_str(s, true).ok());
-            o.mode = Some(mode.ok_or_else(|| fail("mode", "expected \"hollow\" or \"wireframe\"".into()))?);
+            o.mode = Some(
+                mode.ok_or_else(|| fail("mode", "expected \"hollow\" or \"wireframe\"".into()))?,
+            );
         }
 
         if let Some(v) = get("color") {
@@ -201,7 +219,10 @@ mod tests {
     #[test]
     fn block_errors() {
         let e = parse_block("plastic").unwrap_err();
-        assert!(e.contains("valid blocks") && e.contains("109 = metal"), "{e}");
+        assert!(
+            e.contains("valid blocks") && e.contains("109 = metal"),
+            "{e}"
+        );
         // a real block, but not a custom-shape one
         assert!(parse_block("0").unwrap_err().contains("not a custom-shape"));
         assert!(parse_block("9999").unwrap_err().contains("no block"));
@@ -210,9 +231,18 @@ mod tests {
     #[test]
     fn colors() {
         assert_eq!(parse_color(&Value::from("#ff8000")), Ok([255, 128, 0, 255]));
-        assert_eq!(parse_color(&Value::from("ff800080")), Ok([255, 128, 0, 128]));
-        assert_eq!(parse_color(&serde_json::json!([1, 0, 0])), Ok([255, 0, 0, 255]));
-        assert_eq!(parse_color(&serde_json::json!([0.8, 0.8, 0.8, 0.5])), Ok([231, 231, 231, 128]));
+        assert_eq!(
+            parse_color(&Value::from("ff800080")),
+            Ok([255, 128, 0, 128])
+        );
+        assert_eq!(
+            parse_color(&serde_json::json!([1, 0, 0])),
+            Ok([255, 0, 0, 255])
+        );
+        assert_eq!(
+            parse_color(&serde_json::json!([0.8, 0.8, 0.8, 0.5])),
+            Ok([231, 231, 231, 128])
+        );
         assert!(parse_color(&Value::from("#12345")).is_err());
         assert!(parse_color(&Value::from("#gg0000")).is_err());
         assert!(parse_color(&Value::from("#ééé")).is_err());
@@ -221,8 +251,15 @@ mod tests {
 
     #[test]
     fn layering() {
-        let base = Overrides { block: Some(109), thickness: Some(0.1), ..Default::default() };
-        let top = Overrides { block: Some(121), ..Default::default() };
+        let base = Overrides {
+            block: Some(109),
+            thickness: Some(0.1),
+            ..Default::default()
+        };
+        let top = Overrides {
+            block: Some(121),
+            ..Default::default()
+        };
         let merged = base.over(top);
         assert_eq!(merged.block, Some(121));
         assert_eq!(merged.thickness, Some(0.1));
