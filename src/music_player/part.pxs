@@ -4,15 +4,28 @@
 # Outputs  : one per pitch, lowest pitch first. 1 = key down, 0 = key up.
 #            Wire each output to a tone generator.
 #
+# @IF chain@
+# A long song is split in time over several of these controllers, chained one after another.
+# Each plays its part of the song and, when it is over, tells the next one to start (every wire
+# costs one tick, which the tables allow for). The outputs of all controllers go through OR gates
+# before they reach the tone generators.
+# @END@
 # song: 3 bytes per event
 #   byte 0-1 : milliseconds to wait before this event (little endian)
 #   byte 2   : (key << 1) | on, or 255 for "only wait"
 data song = [@SONG@]
+# @IF chain@
+data key_ids = [@KEY_IDS@]
+# @END@
 
 static cursor = 0      # next event to play
 static wait = 0        # milliseconds until that event
 static elapsed = 0     # milliseconds since playback started
+# @IF chain@
+static state = 0       # 0 waiting, 1 playing, 2 part over (keys still held), 3 part over
+# @ELSE@
 static state = 0       # 0 stopped, 1 playing, 2 finished
+# @END@
 static held = []       # 1 while a key is down, one entry per output
 
 keys = @KEYS@
@@ -20,6 +33,10 @@ total_ms = @TOTAL_MS@
 repeat = @REPEAT@
 n_events = len(song) // 3
 changed = 0
+# @IF chain@
+has_link = @HAS_LINK@     # 1: tell the next controller (or, for the last one, the first) when done
+restarts = @RESTARTS@     # 1: input B is the last controller, which says the song is over
+# @END@
 
 def delay(i) -> num:
     return song[i * 3] + song[i * 3 + 1] * 256
@@ -27,6 +44,49 @@ def delay(i) -> num:
 if len(held) != keys:
     resize(held, keys)
 
+# @IF chain@
+run = A > 0.5
+if run:
+    if state == 3 and restarts == 1 and B > 0.5:
+        state = 0
+    if state == 0:
+        state = 1
+        cursor = 0
+        wait = delay(0)
+        elapsed = 0
+    if state == 2:
+        # One tick after the hand-over: let go of the keys. The next controller has pressed the
+        # ones that continue, and the OR gates keep those down.
+        fill(held, 0)
+        changed = 1
+        state = 3
+    elif state == 1:
+        step_ms = dt * 1000
+        wait -= step_ms
+        elapsed += step_ms
+        n = 0
+        while n < 400:
+            if cursor >= n_events:
+                state = 2
+                break
+            if wait > 0:
+                break
+            v = song[cursor * 3 + 2]
+            if v != 255:
+                held[v >> 1] = v & 1
+                changed = 1
+            cursor += 1
+            if cursor < n_events:
+                wait += delay(cursor)
+            n += 1
+elif state != 0:
+    state = 0
+    cursor = 0
+    elapsed = 0
+    fill(held, 0)
+    changed = 1
+
+# @ELSE@
 if A > 0.5:
     if state == 0:
         state = 1
@@ -70,73 +130,11 @@ elif state != 0:
     fill(held, 0)
     changed = 1
 
+# @END@
 # Outputs are rewritten every tick so they never depend on slots persisting.
 for k in range(keys):
     out(k + 1, held[k])
-
-# @DISPLAY_BEGIN@
-# Screen: title, key activity, elapsed/total time and a progress bar.
-# Only what changed is redrawn; the screen keeps its pixels between ticks.
-static ui_ready = 0    # 0 until the fixed parts of the screen are drawn
-static shown_w = 0     # progress bar pixels drawn so far
-static shown_s = 0     # whole seconds currently shown (set to -1 on first draw)
-
-bg = rgb(10, 10, 24)
-
-def mmss(ms) -> str:
-    whole = floor(max(ms, 0) / 1000)
-    sec = whole % 60
-    return str(whole // 60, 0) + ":" + ("0" if sec < 10 else "") + str(sec, 0)
-
-# One screen column per key, or several keys per column on a narrow screen.
-def draw_keys(top, rows):
-    for col in range(width):
-        lo = col * keys // width
-        hi = max(lo + 1, (col + 1) * keys // width)
-        lit = 0
-        for j in range(lo, hi):
-            lit = max(lit, held[j])
-        if lit > 0:
-            color(hsv(lo / keys * 300, 0.85, 1))
-        else:
-            color(18, 18, 40)
-        fill_rect(col, top, 1, rows)
-
-set_font(0)
-
-if ui_ready == 0:
-    ui_ready = 1
-    shown_w = 0
-    shown_s = -1
-    changed = 1
-    clear(bg)
-    color(110, 190, 255)
-    text(1, 1, "@TITLE@")
-    color(32, 32, 52)
-    fill_rect(0, height - 2, width, 2)
-
-# Capped so a full redraw stays far below the 500,000 operation budget even on huge screens.
-if changed == 1 and height >= 22:
-    draw_keys(8, min(height - 18, 64))
-
-cur_s = floor(max(elapsed, 0) / 1000)
-if cur_s != shown_s:
-    shown_s = cur_s
-    color(bg)
-    fill_rect(0, height - 8, width, 5)
-    color(200, 200, 220)
-    text(1, height - 8, mmss(elapsed) + "/" + mmss(total_ms))
-
-fw = 0
-if total_ms > 0:
-    fw = floor(clamp(elapsed / total_ms, 0, 1) * width)
-if fw != shown_w:
-    if fw < shown_w:
-        color(32, 32, 52)
-        fill_rect(0, height - 2, width, 2)
-        shown_w = 0
-    if fw > shown_w:
-        color(0, 220, 140)
-        fill_rect(shown_w, height - 2, fw - shown_w, 2)
-    shown_w = fw
-# @DISPLAY_END@
+# @IF chain@
+if has_link == 1:
+    out(keys + 1, state >= 2)
+# @END@

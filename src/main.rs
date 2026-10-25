@@ -218,6 +218,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     include_drums: args.include_drums,
                     display: !args.no_display,
                     title,
+                    ..Default::default()
                 },
             )?;
 

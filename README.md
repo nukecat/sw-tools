@@ -71,19 +71,26 @@ sw-tools music-player song.mid -o song.structure --repeat --title "My song"
 The structure contains:
 
 - a **microcontroller** running a generated PixelScript program,
-- a **switch**, and
+- a second **microcontroller** that is the screen (left out with `--no-display`),
+- a **switch**,
+- one **OR gate** per pitch (only with a screen, or when a long song is split over several
+  microcontrollers), and
 - one **tone generator** per pitch used by the song.
 
 How it works:
 
 - **Controls:** switch on plays the song; switch off stops it and rewinds.
-- **Output wiring:** the microcontroller's outputs drive the tone generators. Output *n* is
-  the *n*-th lowest pitch used.
+- **Output wiring:** the microcontroller's outputs drive the tone generators (through the OR
+  gates, when there are any). Output *n* is the *n*-th lowest pitch used.
 - **Storage:** the whole song is a single `data` table in the script, stored as raw bytes, so it
   takes no script text.
 - **Tempo:** tempo changes are baked into the table, so playback needs no tempo logic.
-- **Display:** the microcontroller's screen shows the title, active keys, elapsed and total
-  time, and a progress bar. It adapts to any display size.
+- **Display:** a separate microcontroller whose screen shows the title, the keys that are down
+  (as a strip of keys and as note names), elapsed and total time, and a progress bar. It adapts
+  to any display size. It learns which keys are down from the OR gates, which feed both a tone
+  generator and the screen, so it shows what you hear. The switch is wired to it as well, and
+  it counts the time itself while the switch is on. Its inputs are the switch (A), then one per
+  pitch, lowest first.
 
 | Option | Default | Description |
 |---|---|---|
@@ -93,8 +100,8 @@ How it works:
 | `--min-velocity` | `1` | Notes quieter than this are ignored (0–127). |
 | `-r, --repeat` | off | Loop the song. |
 | `--include-drums` | off | Also play the percussion channel (MIDI channel 10). It is skipped by default because drum notes are not pitches. |
-| `--no-display` | off | Leave the microcontroller's screen blank. |
-| `--title` | input file name | Title shown on the screen. |
+| `--no-display` | off | Leave out the screen microcontroller and the OR gates it needs. |
+| `--title` | input file name | Title shown on the screen (up to 40 characters). |
 
 **Limit:** a microcontroller has at most 127 usable outputs here, so a song may use at most
 127 distinct pitches. If it uses more, narrow the range with `--min-pitch` and `--max-pitch`.
