@@ -123,6 +123,8 @@ pub struct Options {
     pub scale: f32,
     /// Handedness conversion, applied after `scale` and the node transforms.
     pub mirror: Mirror,
+    /// Default value stored in every block's state; the glTF may override it.
+    pub value: f32,
 }
 
 impl Default for Options {
@@ -135,6 +137,7 @@ impl Default for Options {
             merge_angle: 0.5,
             scale: 1.0,
             mirror: Mirror::X,
+            value: 0.0,
         }
     }
 }
@@ -172,6 +175,9 @@ pub fn generate(data: &[u8], base: Option<&Path>, opts: &Options) -> Result<(Str
             "thickness must be above 0 and at most {} (the game's plate size limit)",
             block::MAX_SIZE
         )));
+    }
+    if !opts.value.is_finite() {
+        return Err(MeshError::Option("value must be a finite number".into()));
     }
     if !(opts.scale > 0.0 && opts.scale.is_finite()) {
         return Err(MeshError::Option("scale must be a positive number".into()));
@@ -297,6 +303,9 @@ fn emit_primitive(
     let block_id = settings.block.unwrap_or(opts.block);
     let thickness = settings.thickness.unwrap_or(opts.thickness);
     let mode = settings.mode.unwrap_or(opts.mode);
+    let value = settings.value.unwrap_or(opts.value);
+    // every block pushed from here on belongs to this primitive
+    let first_block = ctx.out.blocks.len();
 
     let buffers = ctx.buffers;
     let reader = primitive.reader(|b| Some(&buffers[b.index()]));
@@ -390,6 +399,10 @@ fn emit_primitive(
                 }
             }
         }
+    }
+
+    for block in &mut ctx.out.blocks[first_block..] {
+        block.state = value;
     }
 
     Ok(())

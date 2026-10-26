@@ -498,6 +498,84 @@ fn thickness_and_mode_can_come_from_extras() {
     assert!((v[1].z - 0.2).abs() < 1e-6 && (v[3].z - 0.2).abs() < 1e-6);
 }
 
+// ------------------------------------------------------------------------ value
+
+#[test]
+fn value_defaults_to_zero_and_follows_the_option() {
+    let data = glb(&[Object::new(&RECT, &QUAD_IDX)], vec![]);
+    assert!(run(&data, &opts()).0.iter().all(|b| b.state == 0.0));
+
+    let (blocks, _) = run(
+        &data,
+        &Options {
+            value: 2.5,
+            ..opts()
+        },
+    );
+    assert!(!blocks.is_empty() && blocks.iter().all(|b| b.state == 2.5));
+}
+
+#[test]
+fn value_applies_to_wireframe_blocks_too() {
+    let data = glb(&[Object::new(&RECT, &QUAD_IDX)], vec![]);
+    let (blocks, _) = run(
+        &data,
+        &Options {
+            mode: Mode::Wireframe,
+            value: 3.0,
+            ..opts()
+        },
+    );
+    assert!(!blocks.is_empty() && blocks.iter().all(|b| b.state == 3.0));
+}
+
+#[test]
+fn value_can_come_from_extras_per_object() {
+    let data = glb(
+        &[
+            Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_value": 7})),
+            Object::new(&RECT, &QUAD_IDX),
+            // nested form, and an explicit 0 beats the command-line value
+            Object::new(&RECT, &QUAD_IDX).primitive_extras(json!({"sw": {"value": 0}})),
+        ],
+        vec![],
+    );
+    let (blocks, _) = run(
+        &data,
+        &Options {
+            value: 1.0,
+            ..opts()
+        },
+    );
+    let states: Vec<f32> = blocks.iter().map(|b| b.state).collect();
+    assert_eq!(states, vec![7.0, 1.0, 0.0]);
+}
+
+#[test]
+fn bad_value_is_reported() {
+    let data = glb(
+        &[Object::new(&RECT, &QUAD_IDX).mesh_extras(json!({"sw_value": "high"}))],
+        vec![],
+    );
+    let err = mesh::generate(&data, None, &opts())
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("mesh #0") && err.contains("value"), "{err}");
+
+    let data = glb(&[Object::new(&RECT, &QUAD_IDX)], vec![]);
+    let err = mesh::generate(
+        &data,
+        None,
+        &Options {
+            value: f32::NAN,
+            ..opts()
+        },
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("value"), "{err}");
+}
+
 // ------------------------------------------------------------------------ color
 
 #[test]

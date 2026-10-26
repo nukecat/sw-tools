@@ -117,6 +117,11 @@ struct MeshArgs {
     /// around the vertical axis; none uses glTF coordinates untouched.
     #[arg(long, default_value = "x")]
     mirror: mesh::Mirror,
+
+    /// Value stored in every block's state.
+    /// A glTF can override this per object with `sw_value` in its extras.
+    #[arg(short, long, default_value_t = 0.0)]
+    value: f32,
 }
 
 #[derive(Args)]
@@ -142,6 +147,7 @@ struct PixelArtArgs {
     #[arg(short, long, default_value_t = 1.0)]
     spacing: f32,
 
+    /// Value stored in every block's state.
     #[arg(short, long, default_value_t = 0.0)]
     value: f32,
 }
@@ -247,6 +253,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 merge_angle: args.merge_angle,
                 scale: args.scale,
                 mirror: args.mirror,
+                value: args.value,
             };
             let (structure, stats) = mesh::generate(&buffer, args.input.parent(), &options)?;
 

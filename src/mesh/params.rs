@@ -1,4 +1,4 @@
-//! Per-object settings: the block type, thickness, mode and color.
+//! Per-object settings: the block type, thickness, mode, color and value.
 //!
 //! They can be stored in the glTF itself, in `extras` (in Blender: *Custom
 //! Properties*, with "Custom Properties" ticked in the glTF export options). Either
@@ -7,6 +7,7 @@
 //! ```json
 //! { "sw_block": "glass", "sw_color": "#ff8800" }
 //! { "sw": { "block": "glass", "thickness": 0.1, "mode": "wireframe", "color": [1, 0.5, 0] } }
+//! { "sw_value": 1 }
 //! ```
 //!
 //! | key         | value                                                              |
@@ -15,6 +16,7 @@
 //! | `thickness` | number above 0, at most 10, in the model's units after `--scale`   |
 //! | `mode`      | `hollow` or `wireframe`                                            |
 //! | `color`     | `"#rrggbb"` / `"#rrggbbaa"` (sRGB) or `[r, g, b(, a)]` linear 0–1  |
+//! | `value`     | any finite number; stored in every generated block's state         |
 //!
 //! Extras can sit on a node, mesh, material or primitive. The most specific one wins,
 //! per key: primitive > material > mesh > node (a node also passes its values on to
@@ -117,6 +119,7 @@ pub struct Overrides {
     pub thickness: Option<f32>,
     pub mode: Option<Mode>,
     pub color: Option<[u8; 4]>,
+    pub value: Option<f32>,
 }
 
 impl Overrides {
@@ -127,6 +130,7 @@ impl Overrides {
             thickness: top.thickness.or(self.thickness),
             mode: top.mode.or(self.mode),
             color: top.color.or(self.color),
+            value: top.value.or(self.value),
         }
     }
 
@@ -196,6 +200,13 @@ impl Overrides {
             o.color = Some(parse_color(v).map_err(|m| fail("color", m))?);
         }
 
+        if let Some(v) = get("value") {
+            match v.as_f64() {
+                Some(n) if (n as f32).is_finite() => o.value = Some(n as f32),
+                _ => return Err(fail("value", "expected a finite number".into())),
+            }
+        }
+
         Ok(o)
     }
 }
@@ -263,5 +274,21 @@ mod tests {
         let merged = base.over(top);
         assert_eq!(merged.block, Some(121));
         assert_eq!(merged.thickness, Some(0.1));
+    }
+
+    #[test]
+    fn layering_value() {
+        let base = Overrides {
+            value: Some(1.0),
+            ..Default::default()
+        };
+        // an unset value doesn't hide the less specific one...
+        assert_eq!(base.clone().over(Overrides::default()).value, Some(1.0));
+        // ...and an explicit 0 does override it
+        let zero = Overrides {
+            value: Some(0.0),
+            ..Default::default()
+        };
+        assert_eq!(base.over(zero).value, Some(0.0));
     }
 }
